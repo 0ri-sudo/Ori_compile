@@ -10,9 +10,20 @@ Patch IL2CPP generated C++ files for Ori and the Blind Forest DE on iOS:
 3. Stub WindowManager user32.dll P/Invokes and WindowManager.Update (Assembly-CSharp__28.cpp)
    to eliminate 5x/sec DllNotFoundException: user32.dll spam.
 4. Stub XInput P/Invokes (xinput9_1_0.dll) and XboxController polling thread
-   (J2i.Net.XInputWrapper.cpp & Assembly-CSharp__29.cpp).
+   (J2i.Net.XInputWrapper.cpp).
 5. Stub HighPerformanceCounter Kernel32.dll P/Invokes (Assembly-CSharp__9.cpp).
-6. Stub AVProWindowsMediaPlugin.Init P/Invoke (Assembly-CSharp__1.cpp) to return false cleanly.
+6. Stub AVProWindowsMediaPlugin P/Invoke methods and clamp _DepthFlipScreen.x in
+   AtlasSpriteTextureBinder.BindTo (Assembly-CSharp__1.cpp) for Metal Reversed-Z.
+7. Guard MenuScreenManager.Instantiate and Setup* methods against null prefabs on
+   the title screen (Assembly-CSharp__11.cpp) so MenuScreenManager.Awake() completes.
+8. Wire OriPortShaderFallback + UpdateAlphaGrab + RenderUserInterface into
+   OriPortManualPresenter.RenderFrame, disable Hidden/EarlyZWrite dummy renderers,
+   clamp _DepthFlipScreen.x, and enable OriPortTouchControls on the title screen
+   (Assembly-CSharp__13.cpp).
+9. Clamp _DepthFlipScreen.x in UberShaderRenderQueue.SetRenderQueueExplicit
+   (Assembly-CSharp__27.cpp) for Metal Reversed-Z.
+10. Add iOS MFi / GCExtendedGamepad (e.g. GameSir) button and D-pad support to
+    XboxControllerInput.GetAxis and XboxControllerInput.GetButton (Assembly-CSharp__29.cpp).
 """
 
 import os
@@ -241,7 +252,7 @@ def patch_assembly_csharp_1(cpp_dir: str) -> None:
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Stub all AVProWindowsMediaPlugin P/Invoke methods so they never attempt to load AVProWindowsMedia.dll
+    # 1. Stub all AVProWindowsMediaPlugin P/Invoke methods so they never attempt to load AVProWindowsMedia.dll
     avpro_pattern = re.compile(
         r"(IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR\s+([a-zA-Z0-9_*]+)\s+AVProWindowsMediaPlugin_[A-Za-z0-9_]+\s*\([^)]*\))\s*\{",
     )
@@ -266,9 +277,367 @@ def patch_assembly_csharp_1(cpp_dir: str) -> None:
         pos = m.start() + len(decl_prefix) + len(body) + 4
         count += 1
 
+    # 2. Clamp _DepthFlipScreen.x in AtlasSpriteTextureBinder_BindTo so z_ndc = (_DepthFlipScreen.x + 200)/1200
+    # is always strictly inside (0.0, 1.0) on Metal Reversed-Z (ZTest Less -> MTLCompareFunctionGreater vs 0.0).
+    old_depth_flip = """\t\tV_4 = G_B13_0;
+\t\tfloat L_104 = V_4;
+\t\t(&V_3)->___y = L_104;"""
+    new_depth_flip = """\t\tV_4 = G_B13_0;
+\t\tfloat L_104 = V_4;
+\t\t(&V_3)->___y = L_104;
+\t\tif ((&V_3)->___x < -100.0f || (&V_3)->___x > 900.0f) { (&V_3)->___x = 0.0f; }"""
+    if "(&V_3)->___x < -100.0f" not in content:
+        if old_depth_flip not in content:
+            raise RuntimeError("Could not find AtlasSpriteTextureBinder_BindTo _DepthFlipScreen block in Assembly-CSharp__1.cpp")
+        content = content.replace(old_depth_flip, new_depth_flip, 1)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print(f"[OK] Patched Assembly-CSharp__1.cpp ({count} AVProWindowsMediaPlugin stubs)")
+    print(f"[OK] Patched Assembly-CSharp__1.cpp ({count} AVProWindowsMediaPlugin stubs + AtlasSpriteTextureBinder _DepthFlipScreen clamp)")
+
+
+def patch_assembly_csharp_11(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__11.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Guard MenuScreenManager.Instantiate against null prefabs (e.g. OptionsPrefab / PauseScreenPrefab on title screen)
+    inst_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR GameObject_t76FEDD663AB33C991A9C9A23129337651094216F* MenuScreenManager_Instantiate_m792DCC5C8411B311F2866C149A325B618AD01E12"
+    inst_body = """\tstatic bool s_Il2CppMethodInitialized;
+\tif (!s_Il2CppMethodInitialized)
+\t{
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&GameObject_AddComponent_TisLoadFromMasterAtStart_t9C25327BF5969C2858A43DF91C5D1F7F94D50586_m52E3EC4D7875B897D68BD318CD72941F41792CDF_RuntimeMethod_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_Instantiate_TisGameObject_t76FEDD663AB33C991A9C9A23129337651094216F_m831D2F71DF2AA6C93AFDFEFA04CF2CFC5FBBCDB4_RuntimeMethod_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&SaveSceneManager_t1245C60B6A57C75430C3A63679738D1F72A7AF1C_il2cpp_TypeInfo_var);
+\t\ts_Il2CppMethodInitialized = true;
+\t}
+\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* V_0 = NULL;
+\t{
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_0 = ___0_prefab;
+\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\tif (Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(L_0, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t{
+\t\t\treturn (GameObject_t76FEDD663AB33C991A9C9A23129337651094216F*)NULL;
+\t\t}
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_1;
+\t\tL_1 = Vector3_get_zero_m0C1249C3F25B1C70EAD3CC8B31259975A457AE39_inline(NULL);
+\t\tQuaternion_tDA59F214EF07D7700B26E40E562F267AF7306974 L_2;
+\t\tL_2 = Quaternion_get_identity_m7E701AE095ED10FD5EA0B50ABCFDE2EEFF2173A5_inline(NULL);
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_3;
+\t\tL_3 = Object_Instantiate_TisGameObject_t76FEDD663AB33C991A9C9A23129337651094216F_m831D2F71DF2AA6C93AFDFEFA04CF2CFC5FBBCDB4(L_0, L_1, L_2, Object_Instantiate_TisGameObject_t76FEDD663AB33C991A9C9A23129337651094216F_m831D2F71DF2AA6C93AFDFEFA04CF2CFC5FBBCDB4_RuntimeMethod_var);
+\t\tV_0 = L_3;
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_4 = V_0;
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_5 = ___0_prefab;
+\t\tNullCheck(L_5);
+\t\tString_t* L_6;
+\t\tL_6 = Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392(L_5, NULL);
+\t\tNullCheck(L_4);
+\t\tObject_set_name_mC79E6DC8FFD72479C90F0C4CC7F42A0FEAF5AE47(L_4, L_6, NULL);
+\t\til2cpp_codegen_runtime_class_init_inline(SaveSceneManager_t1245C60B6A57C75430C3A63679738D1F72A7AF1C_il2cpp_TypeInfo_var);
+\t\tSaveSceneManager_t1245C60B6A57C75430C3A63679738D1F72A7AF1C* L_7 = ((SaveSceneManager_t1245C60B6A57C75430C3A63679738D1F72A7AF1C_StaticFields*)il2cpp_codegen_static_fields_for(SaveSceneManager_t1245C60B6A57C75430C3A63679738D1F72A7AF1C_il2cpp_TypeInfo_var))->___Master;
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_8 = V_0;
+\t\tif (L_7 != NULL)
+\t\t{
+\t\t\tSaveSceneManager_RegisterGameObject_m67EA4ADEF8A4A8EACD96FA755B21DF617D1EB14B(L_7, L_8, NULL);
+\t\t}
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_9 = V_0;
+\t\tNullCheck(L_9);
+\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* L_10;
+\t\tL_10 = GameObject_get_transform_m0BC10ADFA1632166AE5544BDF9038A2650C2AE56(L_9, NULL);
+\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* L_11;
+\t\tL_11 = Component_get_transform_m2919A1D81931E6932C7F06D4C2F0AB8DDA9A5371(__this, NULL);
+\t\tNullCheck(L_10);
+\t\tTransform_set_parent_m9BD5E563B539DD5BEC342736B03F97B38A243234(L_10, L_11, NULL);
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_12 = V_0;
+\t\tNullCheck(L_12);
+\t\tGameObject_SetActive_m638E92E1E75E519E5B24CF150B08CA8E0CDFAB92(L_12, (bool)0, NULL);
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_13 = V_0;
+\t\tNullCheck(L_13);
+\t\tLoadFromMasterAtStart_t9C25327BF5969C2858A43DF91C5D1F7F94D50586* L_14;
+\t\tL_14 = GameObject_AddComponent_TisLoadFromMasterAtStart_t9C25327BF5969C2858A43DF91C5D1F7F94D50586_m52E3EC4D7875B897D68BD318CD72941F41792CDF(L_13, GameObject_AddComponent_TisLoadFromMasterAtStart_t9C25327BF5969C2858A43DF91C5D1F7F94D50586_m52E3EC4D7875B897D68BD318CD72941F41792CDF_RuntimeMethod_var);
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_15 = V_0;
+\t\treturn L_15;
+\t}"""
+    content = replace_func_body(content, inst_decl, inst_body)
+
+    # Also guard Utility_DontAssociateWithAnyScene(L_3, NULL) in Setup* methods when L_3 is NULL
+    content = content.replace(
+        "\t\tL_3 = MenuScreenManager_Instantiate_m792DCC5C8411B311F2866C149A325B618AD01E12(__this, L_2, NULL);\n"
+        "\t\tUtility_DontAssociateWithAnyScene_m7F5E614627B34BF7A9A23BC4D04A92FB23D3A98B(L_3, NULL);",
+        "\t\tL_3 = MenuScreenManager_Instantiate_m792DCC5C8411B311F2866C149A325B618AD01E12(__this, L_2, NULL);\n"
+        "\t\tif (L_3 != NULL) { Utility_DontAssociateWithAnyScene_m7F5E614627B34BF7A9A23BC4D04A92FB23D3A98B(L_3, NULL); }",
+    )
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__11.cpp (MenuScreenManager.Instantiate null prefab guards)")
+
+
+def patch_assembly_csharp_13(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__13.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Add external declarations needed in Assembly-CSharp__13.cpp
+    extern_decls = (
+        "IL2CPP_EXTERN_C RuntimeClass* OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06_il2cpp_TypeInfo_var;\n"
+        "IL2CPP_EXTERN_C String_t* _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C;\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8 (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, bool ___0_value, const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Material_SetVector_m69444B8040D955821F241113446CC8713C9E12D1 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 ___1_value, const RuntimeMethod* method);\n"
+    )
+    render_frame_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_RenderFrame_m9CADB5C9F1B1990254DE31AA31AAB8DA5F9F8052"
+    if "Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8" not in content:
+        content = content.replace(render_frame_decl, extern_decls + render_frame_decl, 1)
+
+    # 1. In OriPortManualPresenter_RenderFrame:
+    #    - Periodically run OriPortShaderFallback_PatchLoadedRenderers (every 15 frames) before Camera.Render()
+    #    - Call OriPortManualPresenter_UpdateAlphaGrab(__this, V_2, V_3, NULL) after Camera.Render()
+    #    - Call OriPortManualPresenter_RenderUserInterface(__this, V_1, NULL) after UpdateAlphaGrab()
+    old_render_call = """\t\t\t\tShader_SetGlobalFloat_m8AA7A4D7D73914A00D9207D78621EDDF70602FB0(_stringLiteral682BF2EFA52E75C110EBBFF64FA09D54B09DA240, (-1.0f), NULL);
+\t\t\t\tOriPortManualPresenter_set_IsRenderingPresentedFrame_m1760BA79F65488022AE1A93714CC89A44E71424E_inline((bool)1, NULL);
+\t\t\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_71 = V_1;
+\t\t\t\tNullCheck(L_71);
+\t\t\t\tCamera_Render_m6089001EB6710DA9A21C87185D65922F13A24509(L_71, NULL);
+\t\t\t\tgoto IL_01b7;"""
+
+    new_render_call = """\t\t\t\tstatic OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06* s_fallback = NULL;
+\t\t\t\tstatic int32_t s_patchCounter = 0;
+\t\t\t\tif (s_fallback == NULL)
+\t\t\t\t{
+\t\t\t\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06_il2cpp_TypeInfo_var);
+\t\t\t\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E);
+\t\t\t\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD);
+\t\t\t\t\ts_fallback = (OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06*)il2cpp_codegen_object_new(OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06_il2cpp_TypeInfo_var);
+\t\t\t\t\tOriPortShaderFallback__ctor_mA92EB12DE6E9C75F94389576A21DBED456F345C1(s_fallback, NULL);
+\t\t\t\t\ts_fallback->___m_fallbackShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E, NULL);
+\t\t\t\t\ts_fallback->___m_distanceFieldTextShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD, NULL);
+\t\t\t\t}
+\t\t\t\tif ((s_patchCounter++ % 15) == 0 && s_fallback != NULL)
+\t\t\t\t{
+\t\t\t\t\tOriPortShaderFallback_PatchLoadedRenderers_m6207097F5CCA64E7C293C7E24CD958FAEC3B8444(s_fallback, NULL);
+\t\t\t\t}
+\t\t\t\tShader_SetGlobalFloat_m8AA7A4D7D73914A00D9207D78621EDDF70602FB0(_stringLiteral682BF2EFA52E75C110EBBFF64FA09D54B09DA240, (-1.0f), NULL);
+\t\t\t\tOriPortManualPresenter_set_IsRenderingPresentedFrame_m1760BA79F65488022AE1A93714CC89A44E71424E_inline((bool)1, NULL);
+\t\t\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_71 = V_1;
+\t\t\t\tNullCheck(L_71);
+\t\t\t\tCamera_Render_m6089001EB6710DA9A21C87185D65922F13A24509(L_71, NULL);
+\t\t\t\tOriPortManualPresenter_UpdateAlphaGrab_m6D5C8A797031A3CAABF1F73E449DA1A147570CEF(__this, V_2, V_3, NULL);
+\t\t\t\tOriPortManualPresenter_RenderUserInterface_m546BED64DE0F3F78E0361CC7953676CF474D2161(__this, V_1, NULL);
+\t\t\t\tgoto IL_01b7;"""
+
+    if "OriPortManualPresenter_RenderUserInterface_m546BED64DE0F3F78E0361CC7953676CF474D2161(__this, V_1, NULL);" not in content:
+        if old_render_call not in content:
+            raise RuntimeError("Could not find Camera_Render block in OriPortManualPresenter_RenderFrame")
+        content = content.replace(old_render_call, new_render_call, 1)
+
+    # 2. In OriPortShaderFallback_PatchLoadedRenderers:
+    #    - Initialize _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C ("_DepthFlipScreen")
+    #    - Clamp _DepthFlipScreen.x on every material that has it so Metal Reversed-Z ZTest Less passes
+    #    - Disable any renderer using Hidden/EarlyZWrite (Renderer_set_enabled(V_8, false)) so dummy opaque prepass meshes don't draw or occlude
+    old_meta = "il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteralC4909D7574FBD1AE3EE1C0E4055C75960236DBFD);"
+    new_meta = (
+        old_meta
+        + "\n\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C);"
+    )
+    if "_stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C);" not in content:
+        content = content.replace(old_meta, new_meta, 1)
+
+    old_earlyz_block = """IL_01bc:
+\t{
+\t\tString_t* L_76 = V_13;
+\t\tbool L_77;
+\t\tL_77 = String_op_Equality_m030E1B219352228970A076136E455C4E568C02C1(L_76, _stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA, NULL);
+\t\tif (!L_77)
+\t\t{
+\t\t\tgoto IL_0247;
+\t\t}
+\t}"""
+
+    new_earlyz_block = """IL_01bc:
+\t{
+\t\tif (V_12 != NULL && Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(V_12, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL))
+\t\t{
+\t\t\tVector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 df = Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D(V_12, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL);
+\t\t\tif (df.___x < -100.0f || df.___x > 900.0f)
+\t\t\t{
+\t\t\t\tdf.___x = 0.0f;
+\t\t\t\tMaterial_SetVector_m69444B8040D955821F241113446CC8713C9E12D1(V_12, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, df, NULL);
+\t\t\t}
+\t\t}
+\t\tString_t* L_76 = V_13;
+\t\tbool L_77;
+\t\tL_77 = String_op_Equality_m030E1B219352228970A076136E455C4E568C02C1(L_76, _stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA, NULL);
+\t\tif (!L_77)
+\t\t{
+\t\t\tgoto IL_0247;
+\t\t}
+\t\tif (V_8 != NULL)
+\t\t{
+\t\t\tRenderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(V_8, (bool)0, NULL);
+\t\t}
+\t}"""
+
+    if "Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(V_8, (bool)0, NULL);" not in content:
+        if old_earlyz_block not in content:
+            raise RuntimeError("Could not find IL_01bc block in OriPortShaderFallback_PatchLoadedRenderers")
+        content = content.replace(old_earlyz_block, new_earlyz_block, 1)
+
+    # 3. Enable OriPortTouchControls on the title screen as well as in gameplay
+    touch_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool OriPortTouchControls_get_GameplayControlsEnabled_mF19030CD53AA9F354B8004DF880315F11D19BFA5"
+    touch_body = """\tstatic bool s_Il2CppMethodInitialized;
+\tif (!s_Il2CppMethodInitialized)
+\t{
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var);
+\t\ts_Il2CppMethodInitialized = true;
+\t}
+\t{
+\t\til2cpp_codegen_runtime_class_init_inline(OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var);
+\t\treturn OriPortTouchControls_get_SupportedPlatform_mA634742AAD4C96C71BBFC1E471F194EA0450CF51(NULL);
+\t}"""
+    content = replace_func_body(content, touch_decl, touch_body)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__13.cpp (OriPortManualPresenter UI/AlphaGrab/Fallback + EarlyZWrite disable + TouchControls on title screen)")
+
+
+def patch_assembly_csharp_27(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__27.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Clamp L_15 (z) in UberShaderRenderQueue_SetRenderQueueExplicit so _DepthFlipScreen.x stays in [-100, 900]
+    old_vec_set = "\t\tfloat L_15 = ___1_z;\n\t\tVector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 L_16 = V_1;"
+    new_vec_set = (
+        "\t\tfloat L_15 = ___1_z;\n"
+        "\t\tif (L_15 < -100.0f) { L_15 = -100.0f; } else if (L_15 > 900.0f) { L_15 = 900.0f; }\n"
+        "\t\tVector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 L_16 = V_1;"
+    )
+    if "if (L_15 < -100.0f)" not in content:
+        if old_vec_set not in content:
+            raise RuntimeError("Could not find L_15 assignment in UberShaderRenderQueue_SetRenderQueueExplicit")
+        content = content.replace(old_vec_set, new_vec_set, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__27.cpp (UberShaderRenderQueue _DepthFlipScreen.x clamp)")
+
+
+def patch_assembly_csharp_29(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__29.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 1. Add iOS MFi / GCExtendedGamepad D-Pad KeyCode fallback to XboxControllerInput_GetAxis (Axis 4 = DPadX, Axis 5 = DPadY)
+    #    KeyCode.JoystickButton4 = 334 (DPad Up), 5 = 335 (DPad Right), 6 = 336 (DPad Down), 7 = 337 (DPad Left)
+    old_dpadx = """IL_0100:
+\t{
+\t\til2cpp_codegen_runtime_class_init_inline(XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_il2cpp_TypeInfo_var);
+\t\tStringU5BU5D_t7674CD946EC0CE7B3AE0BE70E6EE85F2ECD9F248* L_50 = ((XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_StaticFields*)il2cpp_codegen_static_fields_for(XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_il2cpp_TypeInfo_var))->___m_joystickAxis6Map;
+\t\tint32_t L_51 = V_0;
+\t\tNullCheck(L_50);
+\t\tint32_t L_52 = L_51;
+\t\tString_t* L_53 = (L_50)->GetAt(static_cast<il2cpp_array_size_t>(L_52));
+\t\tfloat L_54;
+\t\tL_54 = MoonInput_GetAxis_m5BA9804A3E137BB0D0A3ED0A5C9C4917C63F677C(L_53, NULL);
+\t\treturn L_54;
+\t}
+
+IL_010d:
+\t{
+\t\til2cpp_codegen_runtime_class_init_inline(XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_il2cpp_TypeInfo_var);
+\t\tStringU5BU5D_t7674CD946EC0CE7B3AE0BE70E6EE85F2ECD9F248* L_55 = ((XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_StaticFields*)il2cpp_codegen_static_fields_for(XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_il2cpp_TypeInfo_var))->___m_joystickAxis7Map;
+\t\tint32_t L_56 = V_0;
+\t\tNullCheck(L_55);
+\t\tint32_t L_57 = L_56;
+\t\tString_t* L_58 = (L_55)->GetAt(static_cast<il2cpp_array_size_t>(L_57));
+\t\tfloat L_59;
+\t\tL_59 = MoonInput_GetAxis_m5BA9804A3E137BB0D0A3ED0A5C9C4917C63F677C(L_58, NULL);
+\t\treturn L_59;
+\t}"""
+
+    new_dpadx = """IL_0100:
+\t{
+\t\tif (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(335, NULL)) { return 1.0f; }
+\t\tif (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(337, NULL)) { return -1.0f; }
+\t\til2cpp_codegen_runtime_class_init_inline(XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_il2cpp_TypeInfo_var);
+\t\tStringU5BU5D_t7674CD946EC0CE7B3AE0BE70E6EE85F2ECD9F248* L_50 = ((XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_StaticFields*)il2cpp_codegen_static_fields_for(XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_il2cpp_TypeInfo_var))->___m_joystickAxis6Map;
+\t\tint32_t L_51 = V_0;
+\t\tNullCheck(L_50);
+\t\tint32_t L_52 = L_51;
+\t\tString_t* L_53 = (L_50)->GetAt(static_cast<il2cpp_array_size_t>(L_52));
+\t\tfloat L_54;
+\t\tL_54 = MoonInput_GetAxis_m5BA9804A3E137BB0D0A3ED0A5C9C4917C63F677C(L_53, NULL);
+\t\treturn L_54;
+\t}
+
+IL_010d:
+\t{
+\t\tif (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(334, NULL)) { return 1.0f; }
+\t\tif (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(336, NULL)) { return -1.0f; }
+\t\til2cpp_codegen_runtime_class_init_inline(XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_il2cpp_TypeInfo_var);
+\t\tStringU5BU5D_t7674CD946EC0CE7B3AE0BE70E6EE85F2ECD9F248* L_55 = ((XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_StaticFields*)il2cpp_codegen_static_fields_for(XboxControllerInput_t02A09005482D04ABAD089F7F782AD34482369DC0_il2cpp_TypeInfo_var))->___m_joystickAxis7Map;
+\t\tint32_t L_56 = V_0;
+\t\tNullCheck(L_55);
+\t\tint32_t L_57 = L_56;
+\t\tString_t* L_58 = (L_55)->GetAt(static_cast<il2cpp_array_size_t>(L_57));
+\t\tfloat L_59;
+\t\tL_59 = MoonInput_GetAxis_m5BA9804A3E137BB0D0A3ED0A5C9C4917C63F677C(L_58, NULL);
+\t\treturn L_59;
+\t}"""
+
+    if "MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(335, NULL)" not in content:
+        if old_dpadx not in content:
+            raise RuntimeError("Could not find IL_0100 / IL_010d DPad blocks in XboxControllerInput_GetAxis")
+        content = content.replace(old_dpadx, new_dpadx, 1)
+
+    # 2. Add iOS MFi / GCExtendedGamepad KeyCode support in XboxControllerInput_GetButton
+    #    before the Windows InputManager switch:
+    #    - ButtonA (0): KeyCode.JoystickButton14 (344, MFi A) || KeyCode.JoystickButton0 (330)
+    #    - ButtonX (1): KeyCode.JoystickButton15 (345, MFi X) || KeyCode.JoystickButton2 (332)
+    #    - ButtonY (2): KeyCode.JoystickButton12 (342, MFi Y) || KeyCode.JoystickButton3 (333)
+    #    - ButtonB (3): KeyCode.JoystickButton13 (343, MFi B) || KeyCode.JoystickButton1 (331)
+    #    - LeftTrigger (4): KeyCode.JoystickButton10 (340, MFi L2)
+    #    - RightTrigger (5): KeyCode.JoystickButton11 (341, MFi R2)
+    #    - LeftShoulder (6): KeyCode.JoystickButton8 (338, MFi L1)
+    #    - RightShoulder (7): KeyCode.JoystickButton9 (339, MFi R1)
+    #    - LeftStick (8): KeyCode.JoystickButton18 (348, MFi L3)
+    #    - RightStick (9): KeyCode.JoystickButton19 (349, MFi R3)
+    #    - Select (10): KeyCode.JoystickButton16 (346)
+    #    - Start (11): KeyCode.JoystickButton0 (330, MFi Menu) || KeyCode.JoystickButton7 (337)
+    old_btn_switch = """\t{
+\t\tint32_t L_38 = ___0_button;
+\t\til2cpp_codegen_runtime_class_init_inline(PlayerInputRebinding_t780DD2FDE54D024B9B99531C52EC1D4EA3C6A150_il2cpp_TypeInfo_var);"""
+
+    new_btn_switch = """\t{
+\t\tswitch (___0_button)
+\t\t{
+\t\t\tcase 0: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(344, NULL)) return true; break;
+\t\t\tcase 1: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(345, NULL)) return true; break;
+\t\t\tcase 2: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(342, NULL)) return true; break;
+\t\t\tcase 3: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(343, NULL)) return true; break;
+\t\t\tcase 4: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(340, NULL)) return true; break;
+\t\t\tcase 5: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(341, NULL)) return true; break;
+\t\t\tcase 6: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(338, NULL)) return true; break;
+\t\t\tcase 7: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(339, NULL)) return true; break;
+\t\t\tcase 8: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(348, NULL)) return true; break;
+\t\t\tcase 9: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(349, NULL)) return true; break;
+\t\t\tcase 10: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(346, NULL)) return true; break;
+\t\t\tcase 11: if (MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(330, NULL)) return true; break;
+\t\t}
+\t\tint32_t L_38 = ___0_button;
+\t\til2cpp_codegen_runtime_class_init_inline(PlayerInputRebinding_t780DD2FDE54D024B9B99531C52EC1D4EA3C6A150_il2cpp_TypeInfo_var);"""
+
+    if "MoonInput_GetKey_m3AA2E312BBBFF5E96BD036637D7312AB7A8540FD(344, NULL)" not in content:
+        if old_btn_switch not in content:
+            raise RuntimeError("Could not find PlayerInputRebinding block in XboxControllerInput_GetButton")
+        content = content.replace(old_btn_switch, new_btn_switch, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__29.cpp (iOS MFi / GameSir controller support)")
 
 
 def main() -> None:
@@ -289,6 +658,10 @@ def main() -> None:
     patch_xinput(cpp_dir)
     patch_assembly_csharp_9(cpp_dir)
     patch_assembly_csharp_1(cpp_dir)
+    patch_assembly_csharp_11(cpp_dir)
+    patch_assembly_csharp_13(cpp_dir)
+    patch_assembly_csharp_27(cpp_dir)
+    patch_assembly_csharp_29(cpp_dir)
     print("All iOS IL2CPP runtime patches applied successfully!")
 
 
