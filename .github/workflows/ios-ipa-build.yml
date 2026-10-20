@@ -1,0 +1,38 @@
+name: Build Ori DE iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-ipa:
+    name: Compile Xcode Project to Unsigned/Ad-Hoc IPA
+    runs-on: macos-14
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout Repository (with Git LFS if used)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Select Latest Stable Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Build Unsigned / Ad-Hoc IPA
+        working-directory: ios_xcode_build
+        run: |
+          chmod +x build_ipa.sh
+          ./build_ipa.sh
+
+      - name: Upload Ori DE iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OriAndTheBlindForestDE-iOS-IPA
+          path: ios_xcode_build/OriAndTheBlindForestDE_iOS.ipa
+          retention-days: 14
+          compression-level: 0
