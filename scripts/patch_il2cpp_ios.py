@@ -386,9 +386,13 @@ def patch_assembly_csharp_13(cpp_dir: str) -> None:
         "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8 (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, bool ___0_value, const RuntimeMethod* method);\n"
         "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);\n"
         "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Material_SetVector_m69444B8040D955821F241113446CC8713C9E12D1 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 ___1_value, const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortShaderFallback__ctor_mA92EB12DE6E9C75F94389576A21DBED456F345C1 (OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06* __this, const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortShaderFallback_PatchLoadedRenderers_m6207097F5CCA64E7C293C7E24CD958FAEC3B8444 (OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06* __this, const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_UpdateAlphaGrab_m6D5C8A797031A3CAABF1F73E449DA1A147570CEF (OriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* __this, int32_t ___0_width, int32_t ___1_height, const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_RenderUserInterface_m546BED64DE0F3F78E0361CC7953676CF474D2161 (OriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* __this, Camera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* ___0_mainCamera, const RuntimeMethod* method);\n"
     )
     render_frame_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_RenderFrame_m9CADB5C9F1B1990254DE31AA31AAB8DA5F9F8052"
-    if "Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8" not in content:
+    if "OriPortManualPresenter_UpdateAlphaGrab_m6D5C8A797031A3CAABF1F73E449DA1A147570CEF (" not in content.split(render_frame_decl)[0]:
         content = content.replace(render_frame_decl, extern_decls + render_frame_decl, 1)
 
     # 1. In OriPortManualPresenter_RenderFrame:
