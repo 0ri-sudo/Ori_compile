@@ -1,38 +1,166 @@
-name: Build Ori DE iOS IPA
+name: Build Ori DE iOS IPA (From GitHub Release Split Archives)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+    inputs:
+      release_tag:
+        description: "Tag de la Release GitHub contenant les archives découpées (laisser vide pour prendre la dernière Release)"
+        required: false
+        default: ""
+  release:
+    types: [published]
+
+permissions:
+  contents: write
 
 jobs:
   build-ipa:
-    name: Compile Xcode Project to Unsigned/Ad-Hoc IPA
+    name: Download Split Xcode Project & Compile IPA on macOS
     runs-on: macos-14
     timeout-minutes: 120
 
     steps:
-      - name: Checkout Repository (with Git LFS if used)
+      - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          lfs: true
 
-      - name: Select Latest Stable Xcode
+      - name: Install 7-Zip & Tools (Homebrew)
+        run: |
+          brew install sevenzip
+
+      - name: Download Split Archives from GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ github.event.inputs.release_tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir -p release_download
+          cd release_download
+
+          TARGET_TAG="${INPUT_TAG:-$EVENT_TAG}"
+          if [ -n "$TARGET_TAG" ]; then
+            echo "Téléchargement des fichiers depuis la Release : $TARGET_TAG"
+            gh release download "$TARGET_TAG" --repo "${{ github.repository }}"
+          else
+            echo "Téléchargement des fichiers depuis la dernière Release..."
+            gh release download --repo "${{ github.repository }}"
+          fi
+
+          echo "Fichiers téléchargés depuis la Release :"
+          ls -lh
+
+      - name: Extract Split Archives & Locate Xcode Project
+        run: |
+          mkdir -p extracted_xcode
+          cd release_download
+
+          # Détecte automatiquement le format de découpage (.7z.001, .zip.001, .tar.gz.part*, .rar, .7z, .zip)
+          if ls *.7z.001 1>/dev/null 2>&1; then
+            FIRST_PART=$(ls *.7z.001 | head -n 1)
+            echo "Extraction de l'archive multi-volume 7z : $FIRST_PART"
+            7zz x "$FIRST_PART" -o../extracted_xcode -y
+          elif ls *.zip.001 1>/dev/null 2>&1; then
+            FIRST_PART=$(ls *.zip.001 | head -n 1)
+            echo "Extraction de l'archive multi-volume zip : $FIRST_PART"
+            7zz x "$FIRST_PART" -o../extracted_xcode -y
+          elif ls *.part01.rar 1>/dev/null 2>&1 || ls *.part1.rar 1>/dev/null 2>&1; then
+            FIRST_PART=$(ls *.part*1.rar | head -n 1)
+            echo "Extraction de l'archive multi-volume RAR : $FIRST_PART"
+            7zz x "$FIRST_PART" -o../extracted_xcode -y
+          elif ls *.tar.gz.* 1>/dev/null 2>&1; then
+            echo "Réassemblage et extraction de l'archive .tar.gz découpée..."
+            cat *.tar.gz.* | tar -xzf - -C ../extracted_xcode
+          elif ls *.tar.* 1>/dev/null 2>&1; then
+            echo "Réassemblage et extraction de l'archive .tar découpée..."
+            cat *.tar.* | tar -xf - -C ../extracted_xcode
+          elif ls *.7z 1>/dev/null 2>&1; then
+            for f in *.7z; do 7zz x "$f" -o../extracted_xcode -y; done
+          elif ls *.zip 1>/dev/null 2>&1; then
+            for f in *.zip; do 7zz x "$f" -o../extracted_xcode -y; done
+          else
+            echo "ERREUR : Aucune archive reconnue (.7z.001, .zip.001, .tar.gz.*, .7z, .zip) trouvée dans la Release !"
+            exit 1
+          fi
+
+          cd ..
+          rm -rf release_download
+
+          # Recherche automatique du dossier contenant Unity-iPhone.xcodeproj
+          XCODEPROJ_DIR=$(find extracted_xcode -name "Unity-iPhone.xcodeproj" -type d | head -n 1 | xargs dirname)
+          if [ -z "$XCODEPROJ_DIR" ]; then
+            echo "ERREUR : Unity-iPhone.xcodeproj introuvable après extraction !"
+            find extracted_xcode -maxdepth 3
+            exit 1
+          fi
+
+          echo "Projet Xcode trouvé dans : $XCODEPROJ_DIR"
+          echo "XCODE_DIR=$XCODEPROJ_DIR" >> "$GITHUB_ENV"
+
+      - name: Select Stable Xcode & Compile Unsigned/Ad-Hoc IPA
         run: |
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
 
-      - name: Build Unsigned / Ad-Hoc IPA
-        working-directory: ios_xcode_build
-        run: |
-          chmod +x build_ipa.sh
-          ./build_ipa.sh
+          # Copie build_ipa.sh du dépôt s'il n'est pas déjà dans le dossier extrait
+          if [ ! -f "$XCODE_DIR/build_ipa.sh" ] && [ -f "ios_xcode_build/build_ipa.sh" ]; then
+            cp "ios_xcode_build/build_ipa.sh" "$XCODE_DIR/build_ipa.sh"
+          fi
 
-      - name: Upload Ori DE iOS IPA Artifact
+          cd "$XCODE_DIR"
+
+          if [ -f "build_ipa.sh" ]; then
+            chmod +x build_ipa.sh
+            ./build_ipa.sh
+          else
+            chmod +x process_symbols.sh 2>/dev/null || true
+            xcodebuild build \
+              -project "Unity-iPhone.xcodeproj" \
+              -scheme "Unity-iPhone" \
+              -configuration "Release" \
+              -sdk iphoneos \
+              -derivedDataPath "$PWD/build_ipa_output/DerivedData" \
+              ARCHS="arm64" \
+              ONLY_ACTIVE_ARCH=NO \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              AD_HOC_CODE_SIGNING_ALLOWED=YES \
+              COMPILER_INDEX_STORE_ENABLE=NO
+
+            APP_PATH=$(find "$PWD/build_ipa_output/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -name "*.app" | head -n 1)
+            mkdir -p "$PWD/build_ipa_output/Payload"
+            cp -R "$APP_PATH" "$PWD/build_ipa_output/Payload/"
+            codesign --force --deep --sign - "$PWD/build_ipa_output/Payload/$(basename "$APP_PATH")" || true
+            cd "$PWD/build_ipa_output"
+            zip -qry "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa" Payload
+          fi
+
+          if [ -f "$XCODE_DIR/OriAndTheBlindForestDE_iOS.ipa" ]; then
+            mv "$XCODE_DIR/OriAndTheBlindForestDE_iOS.ipa" "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa"
+          fi
+
+          ls -lh "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa"
+
+      - name: Upload IPA as Workflow Artifact
         uses: actions/upload-artifact@v4
         with:
           name: OriAndTheBlindForestDE-iOS-IPA
-          path: ios_xcode_build/OriAndTheBlindForestDE_iOS.ipa
+          path: OriAndTheBlindForestDE_iOS.ipa
           retention-days: 14
           compression-level: 0
+
+      - name: Attach Compiled IPA directly to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ github.event.inputs.release_tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          TARGET_TAG="${INPUT_TAG:-$EVENT_TAG}"
+          if [ -z "$TARGET_TAG" ]; then
+            TARGET_TAG=$(gh release view --repo "${{ github.repository }}" --json tagName -q .tagName || true)
+          fi
+
+          if [ -n "$TARGET_TAG" ]; then
+            echo "Publication de OriAndTheBlindForestDE_iOS.ipa dans la Release $TARGET_TAG..."
+            gh release upload "$TARGET_TAG" OriAndTheBlindForestDE_iOS.ipa --clobber --repo "${{ github.repository }}"
+            echo "IPA ajouté avec succès à la Release $TARGET_TAG !"
+          fi
