@@ -100,45 +100,82 @@ jobs:
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
 
-          # Copie build_ipa.sh du dépôt s'il n'est pas déjà dans le dossier extrait
-          if [ ! -f "$XCODE_DIR/build_ipa.sh" ] && [ -f "ios_xcode_build/build_ipa.sh" ]; then
-            cp "ios_xcode_build/build_ipa.sh" "$XCODE_DIR/build_ipa.sh"
+          # Toujours écraser build_ipa.sh dans le dossier extrait avec la dernière version du dépôt
+          if [ -f "ios_xcode_build/build_ipa.sh" ]; then
+            cp -f "ios_xcode_build/build_ipa.sh" "$XCODE_DIR/build_ipa.sh"
           fi
 
           cd "$XCODE_DIR"
 
-          if [ -f "build_ipa.sh" ]; then
-            chmod +x build_ipa.sh
-            ./build_ipa.sh
-          else
-            chmod +x process_symbols.sh 2>/dev/null || true
-            xcodebuild build \
-              -project "Unity-iPhone.xcodeproj" \
-              -scheme "Unity-iPhone" \
-              -configuration "Release" \
-              -sdk iphoneos \
-              -derivedDataPath "$PWD/build_ipa_output/DerivedData" \
-              ARCHS="arm64" \
-              ONLY_ACTIVE_ARCH=NO \
-              CODE_SIGN_IDENTITY="" \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO \
-              AD_HOC_CODE_SIGNING_ALLOWED=YES \
-              COMPILER_INDEX_STORE_ENABLE=NO
+          # 1. S'assurer que tous les exécutables IL2CPP et scripts ont les droits d'exécution (perdus lors de la compression 7z sur Windows)
+          chmod +x process_symbols.sh 2>/dev/null || true
+          chmod +x build_ipa.sh 2>/dev/null || true
+          find Il2CppOutputProject -type f \( -name "il2cpp*" -o -name "bee_backend*" -o -name "*.sh" -o -name "clang*" -o -name "ld*" \) -exec chmod +x {} + 2>/dev/null || true
+          chmod -R +x Il2CppOutputProject/IL2CPP/build/ 2>/dev/null || true
 
-            APP_PATH=$(find "$PWD/build_ipa_output/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -name "*.app" | head -n 1)
-            mkdir -p "$PWD/build_ipa_output/Payload"
-            cp -R "$APP_PATH" "$PWD/build_ipa_output/Payload/"
-            codesign --force --deep --sign - "$PWD/build_ipa_output/Payload/$(basename "$APP_PATH")" || true
-            cd "$PWD/build_ipa_output"
-            zip -qry "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa" Payload
+          # 2. Patcher project.pbxproj pour désactiver totalement la signature de code et CodeSignOnCopy (qui fait planter Embed Frameworks sans certificat Apple)
+          PBXPROJ="Unity-iPhone.xcodeproj/project.pbxproj"
+          if [ -f "$PBXPROJ" ]; then
+            sed -i '' 's/CodeSignOnCopy, //g' "$PBXPROJ"
+            sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";/g' "$PBXPROJ"
+            sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' "$PBXPROJ"
+            sed -i '' 's/ProvisioningStyle = Manual;/ProvisioningStyle = Automatic;/g' "$PBXPROJ"
           fi
 
-          if [ -f "$XCODE_DIR/OriAndTheBlindForestDE_iOS.ipa" ]; then
-            mv "$XCODE_DIR/OriAndTheBlindForestDE_iOS.ipa" "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa"
+          # 3. Lancer la compilation en enregistrant tout le log dans xcodebuild.log
+          set +e
+          xcodebuild build \
+            -project "Unity-iPhone.xcodeproj" \
+            -scheme "Unity-iPhone" \
+            -configuration "Release" \
+            -sdk iphoneos \
+            -derivedDataPath "$PWD/build_ipa_output/DerivedData" \
+            ARCHS="arm64" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            EXPANDED_CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+          BUILD_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "## ❌ Échec de la compilation Xcode (Code $BUILD_EXIT_CODE)" >> "$GITHUB_STEP_SUMMARY"
+            echo "### 🔍 Lignes d'erreurs détectées :" >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            grep -i -E "(error:|fatal error:|undefined symbols|ld: |clang: error|PhaseScriptExecution failed)" -C 3 "$GITHUB_WORKSPACE/xcodebuild.log" | tail -n 120 >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "### 📜 80 dernières lignes du log Xcode :" >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 80 "$GITHUB_WORKSPACE/xcodebuild.log" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit $BUILD_EXIT_CODE
           fi
+
+          APP_PATH=$(find "$PWD/build_ipa_output/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "ERREUR : Le bundle .app n'a pas été trouvé après la compilation Xcode."
+            exit 1
+          fi
+
+          mkdir -p "$PWD/build_ipa_output/Payload"
+          cp -R "$APP_PATH" "$PWD/build_ipa_output/Payload/"
+          codesign --force --deep --sign - "$PWD/build_ipa_output/Payload/$(basename "$APP_PATH")" || true
+          cd "$PWD/build_ipa_output"
+          zip -qry "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa" Payload
 
           ls -lh "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa"
+          echo "## ✅ Compilation de l'IPA réussie !" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Xcode Build Log (Toujours disponible même en cas d'erreur)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-logs
+          path: xcodebuild.log
+          retention-days: 7
 
       - name: Upload IPA as Workflow Artifact
         uses: actions/upload-artifact@v4
