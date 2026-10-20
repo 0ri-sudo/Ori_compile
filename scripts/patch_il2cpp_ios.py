@@ -379,22 +379,45 @@ def patch_assembly_csharp_13(cpp_dir: str) -> None:
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Add external declarations and a 100% stateless scene renderer sanitizer helper
-    # that clamps _DepthFlipScreen.x into [-100, 900] (for Metal Reversed-Z) and
-    # disables Hidden/EarlyZWrite dummy opaque Lambert prepass renderers, without
-    # relying on OriPortShaderFallback (whose Dictionary/HashSet or unflipped fallback
-    # shaders caused an IndexOutOfRangeException that killed the presenter coroutine).
+    # Remove any previous OriPort_SanitizeSceneRenderers block so re-running the script is idempotent
+    render_frame_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_RenderFrame_m9CADB5C9F1B1990254DE31AA31AAB8DA5F9F8052 (OriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* __this, const RuntimeMethod* method) \n{"
+    if render_frame_decl not in content:
+        render_frame_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_RenderFrame_m9CADB5C9F1B1990254DE31AA31AAB8DA5F9F8052 (OriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* __this, const RuntimeMethod* method)\n{"
+    if render_frame_decl not in content:
+        raise RuntimeError("Could not find OriPortManualPresenter_RenderFrame definition in Assembly-CSharp__13.cpp")
+
+    old_block_start = content.find("IL2CPP_EXTERN_C String_t* _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C;")
+    rf_idx = content.find(render_frame_decl)
+    if old_block_start != -1 and old_block_start < rf_idx:
+        content = content[:old_block_start] + content[rf_idx:]
+
+    # Add external declarations and a 100% stateless in-place scene renderer & shader sanitizer:
+    # 1. Replaces broken Hidden/UberShader/* shaders in-place on the original Material instance:
+    #    - Uses OriPort/DistanceFieldText if _TxtTexture is assigned (text/UI/menus)
+    #    - Uses OriPort/FallbackUnlit otherwise (all atlas sprites, logos, characters, backgrounds)
+    #    - Preserves Material.renderQueue and keeps all SpriteAnimator/TransparencyAnimator references intact!
+    # 2. Clamps _DepthFlipScreen.x into [-100, 900] for Metal Reversed-Z.
+    # 3. Disables Hidden/EarlyZWrite dummy opaque Lambert prepass renderers.
     extern_decls = """IL2CPP_EXTERN_C String_t* _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C;
 IL2CPP_EXTERN_C String_t* _stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA;
+IL2CPP_EXTERN_C String_t* _stringLiteral82CBFBC9D96154286C59A7A832F44ACA59CCC81D;
+IL2CPP_EXTERN_C String_t* _stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093;
+IL2CPP_EXTERN_C String_t* _stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E;
+IL2CPP_EXTERN_C String_t* _stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD;
 IL2CPP_EXTERN_C const RuntimeType* Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_0_0_0_var;
 IL2CPP_EXTERN_C RuntimeClass* Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* Type_t_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR MaterialU5BU5D_t2B1D11C42DB07A4400C0535F92DBB87A2E346D3D* Renderer_get_sharedMaterials_m0B61AFD8EDA35A70C796FFB2F28BB62380051ABF (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8 (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, bool ___0_value, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Shader_tADC867D36B7876EE22427FAA2CE485105F4EE692* Material_get_shader_m8B0C11AE6F2AD7DE30AF52D3195EB716F7A71983 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Material_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, Shader_tADC867D36B7876EE22427FAA2CE485105F4EE692* ___0_value, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int32_t Material_get_renderQueue_mC427C54D2667620CBB845559DA4DA31BE166C757 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Material_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, int32_t ___0_value, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* Material_GetTexture_mBA07A377A7DDD29CD53E6F687DE6D49A42C0C719 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Material_SetVector_m69444B8040D955821F241113446CC8713C9E12D1 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 ___1_value, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool String_StartsWith_mF75DBA1EB709811E711B44E26FF919C88A8E65C0 (String_t* __this, String_t* ___0_value, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_UpdateAlphaGrab_m6D5C8A797031A3CAABF1F73E449DA1A147570CEF (OriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* __this, int32_t ___0_width, int32_t ___1_height, const RuntimeMethod* method);
 
 static void OriPort_SanitizeSceneRenderers()
@@ -408,10 +431,16 @@ static void OriPort_SanitizeSceneRenderers()
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Type_t_il2cpp_TypeInfo_var);
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA);
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral82CBFBC9D96154286C59A7A832F44ACA59CCC81D);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD);
 \t\ts_init = true;
 \t}
 \ttry
 \t{
+\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* fallbackShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E, NULL);
+\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* textShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD, NULL);
 \t\tRuntimeTypeHandle_t332A452B8B6179E4469B69525D0FE82A88030F7B rHandle = { reinterpret_cast<intptr_t>(Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_0_0_0_var) };
 \t\til2cpp_codegen_runtime_class_init_inline(Type_t_il2cpp_TypeInfo_var);
 \t\tType_t* rType = Type_GetTypeFromHandle_m6062B81682F79A4D6DF2640692EE6D9987858C57(rHandle, NULL);
@@ -434,6 +463,37 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\tif (mat == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(mat, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL)) continue;
 \t\t\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* sh = Material_get_shader_m8B0C11AE6F2AD7DE30AF52D3195EB716F7A71983(mat, NULL);
 \t\t\t\tif (sh == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(sh, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL)) continue;
+\t\t\t\tString_t* shName = Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392(sh, NULL);
+\t\t\t\tif (shName != NULL)
+\t\t\t\t{
+\t\t\t\t\tif (String_op_Equality_m030E1B219352228970A076136E455C4E568C02C1(shName, _stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA, NULL))
+\t\t\t\t\t{
+\t\t\t\t\t\tRenderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(ren, (bool)0, NULL);
+\t\t\t\t\t\tcontinue;
+\t\t\t\t\t}
+\t\t\t\t\tif (String_StartsWith_mF75DBA1EB709811E711B44E26FF919C88A8E65C0(shName, _stringLiteral82CBFBC9D96154286C59A7A832F44ACA59CCC81D, NULL))
+\t\t\t\t\t{
+\t\t\t\t\t\tint32_t rq = Material_get_renderQueue_mC427C54D2667620CBB845559DA4DA31BE166C757(mat, NULL);
+\t\t\t\t\t\tbool isText = false;
+\t\t\t\t\t\tif (Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093, NULL))
+\t\t\t\t\t\t{
+\t\t\t\t\t\t\tTexture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* txtTex = Material_GetTexture_mBA07A377A7DDD29CD53E6F687DE6D49A42C0C719(mat, _stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093, NULL);
+\t\t\t\t\t\t\tif (txtTex != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(txtTex, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\tisText = true;
+\t\t\t\t\t\t\t}
+\t\t\t\t\t\t}
+\t\t\t\t\t\tif (isText && textShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(textShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t{
+\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, textShader, NULL);
+\t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
+\t\t\t\t\t\t}
+\t\t\t\t\t\telse if (fallbackShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(fallbackShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t{
+\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD55E15424C171_placeholder: ;
+\t\t\t\t\t\t}
+\t\t\t\t\t}
+\t\t\t\t}
 \t\t\t\tif (Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL))
 \t\t\t\t{
 \t\t\t\t\tVector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 df = Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL);
@@ -443,11 +503,6 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\t\t\tMaterial_SetVector_m69444B8040D955821F241113446CC8713C9E12D1(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, df, NULL);
 \t\t\t\t\t}
 \t\t\t\t}
-\t\t\t\tString_t* shName = Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392(sh, NULL);
-\t\t\t\tif (shName != NULL && String_op_Equality_m030E1B219352228970A076136E455C4E568C02C1(shName, _stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA, NULL))
-\t\t\t\t{
-\t\t\t\t\tRenderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(ren, (bool)0, NULL);
-\t\t\t\t}
 \t\t\t}
 \t\t}
 \t}
@@ -455,14 +510,11 @@ static void OriPort_SanitizeSceneRenderers()
 \t{
 \t}
 }
-"""
-    render_frame_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_RenderFrame_m9CADB5C9F1B1990254DE31AA31AAB8DA5F9F8052 (OriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* __this, const RuntimeMethod* method) \n{"
-    if "OriPort_SanitizeSceneRenderers()" not in content:
-        if render_frame_decl not in content:
-            render_frame_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_RenderFrame_m9CADB5C9F1B1990254DE31AA31AAB8DA5F9F8052 (OriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* __this, const RuntimeMethod* method)\n{"
-        if render_frame_decl not in content:
-            raise RuntimeError("Could not find OriPortManualPresenter_RenderFrame definition in Assembly-CSharp__13.cpp")
-        content = content.replace(render_frame_decl, extern_decls + render_frame_decl, 1)
+""".replace(
+        "Material_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD55E15424C171_placeholder: ;",
+        "Material_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, fallbackShader, NULL);\n\t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);"
+    )
+    content = content.replace(render_frame_decl, extern_decls + render_frame_decl, 1)
 
     # 1. In OriPortManualPresenter_RenderFrame:
     #    - Periodically run OriPort_SanitizeSceneRenderers() (every 15 frames) before Camera.Render()
@@ -533,7 +585,18 @@ static void OriPort_SanitizeSceneRenderers()
             raise RuntimeError("Could not find IL_003d block in U3CStartU3Ed__13_MoveNext")
         content = content.replace(old_movenext_call, new_movenext_call, 1)
 
-    # 3. Enable OriPortTouchControls on the title screen as well as in gameplay
+    # 3. Fix GUI.depth in OriPortManualPresenter_OnGUI:
+    #    In Unity IMGUI, lower GUI.depth draws ON TOP. OriPortManualPresenter_OnGUI had GUI.depth = -10000
+    #    while OriPortTouchControls_OnGUI has GUI.depth = -1000, so the opaque game frame covered the touch controls!
+    #    Set OriPortManualPresenter_OnGUI's GUI.depth to 1000 so OriPortTouchControls (-1000) renders on top of the game frame.
+    old_gui_depth = "GUI_set_depth_m37E8C151AD6D1B28DDFABB64A0974398AA8EC44E(((int32_t)-10000), NULL);"
+    new_gui_depth = "GUI_set_depth_m37E8C151AD6D1B28DDFABB64A0974398AA8EC44E(((int32_t)1000), NULL);"
+    if old_gui_depth in content:
+        content = content.replace(old_gui_depth, new_gui_depth, 1)
+    elif new_gui_depth not in content:
+        raise RuntimeError("Could not find GUI_set_depth(-10000) in OriPortManualPresenter_OnGUI")
+
+    # 4. Enable OriPortTouchControls on the title screen as well as in gameplay
     touch_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool OriPortTouchControls_get_GameplayControlsEnabled_mF19030CD53AA9F354B8004DF880315F11D19BFA5"
     touch_body = """\tstatic bool s_Il2CppMethodInitialized;
 \tif (!s_Il2CppMethodInitialized)
@@ -547,9 +610,14 @@ static void OriPort_SanitizeSceneRenderers()
 \t}"""
     content = replace_func_body(content, touch_decl, touch_body)
 
+    # 5. Also ensure OriPortShaderFallback_IsRecoveredShader always returns false
+    is_rec_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool OriPortShaderFallback_IsRecoveredShader_m1A7E0555FB0BC694339005AED36D901FFBE886A4"
+    is_rec_body = "\treturn (bool)0;"
+    content = replace_func_body(content, is_rec_decl, is_rec_body)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__13.cpp (OriPortManualPresenter AlphaGrab + stateless scene renderer sanitizer + coroutine guard + TouchControls)")
+    print("[OK] Patched Assembly-CSharp__13.cpp (OriPortManualPresenter AlphaGrab + in-place shader/renderer sanitizer + GUI.depth + TouchControls)")
 
 
 def patch_assembly_csharp_27(cpp_dir: str) -> None:
