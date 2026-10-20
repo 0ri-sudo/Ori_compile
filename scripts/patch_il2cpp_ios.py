@@ -381,7 +381,6 @@ def patch_assembly_csharp_13(cpp_dir: str) -> None:
 
     # Add external declarations needed in Assembly-CSharp__13.cpp
     extern_decls = (
-        "IL2CPP_EXTERN_C RuntimeClass* OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06_il2cpp_TypeInfo_var;\n"
         "IL2CPP_EXTERN_C String_t* _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C;\n"
         "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8 (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, bool ___0_value, const RuntimeMethod* method);\n"
         "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);\n"
@@ -406,21 +405,22 @@ def patch_assembly_csharp_13(cpp_dir: str) -> None:
 \t\t\t\tCamera_Render_m6089001EB6710DA9A21C87185D65922F13A24509(L_71, NULL);
 \t\t\t\tgoto IL_01b7;"""
 
-    new_render_call = """\t\t\t\tstatic OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06* s_fallback = NULL;
+    new_render_call = """\t\t\t\tstatic OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06* s_fallbackObj = NULL;
 \t\t\t\tstatic int32_t s_patchCounter = 0;
-\t\t\t\tif (s_fallback == NULL)
+\t\t\t\tif (s_fallbackObj == NULL)
 \t\t\t\t{
-\t\t\t\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06_il2cpp_TypeInfo_var);
+\t\t\t\t\tstatic OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06 s_fallbackStorage;
+\t\t\t\t\tmemset(&s_fallbackStorage, 0, sizeof(s_fallbackStorage));
+\t\t\t\t\ts_fallbackObj = &s_fallbackStorage;
 \t\t\t\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E);
 \t\t\t\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD);
-\t\t\t\t\ts_fallback = (OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06*)il2cpp_codegen_object_new(OriPortShaderFallback_t8B81F7F3777F45910163AD5256AEF3336629DB06_il2cpp_TypeInfo_var);
-\t\t\t\t\tOriPortShaderFallback__ctor_mA92EB12DE6E9C75F94389576A21DBED456F345C1(s_fallback, NULL);
-\t\t\t\t\ts_fallback->___m_fallbackShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E, NULL);
-\t\t\t\t\ts_fallback->___m_distanceFieldTextShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD, NULL);
+\t\t\t\t\tOriPortShaderFallback__ctor_mA92EB12DE6E9C75F94389576A21DBED456F345C1(s_fallbackObj, NULL);
+\t\t\t\t\ts_fallbackObj->___m_fallbackShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E, NULL);
+\t\t\t\t\ts_fallbackObj->___m_distanceFieldTextShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD, NULL);
 \t\t\t\t}
-\t\t\t\tif ((s_patchCounter++ % 15) == 0 && s_fallback != NULL)
+\t\t\t\tif ((s_patchCounter++ % 15) == 0 && s_fallbackObj != NULL)
 \t\t\t\t{
-\t\t\t\t\tOriPortShaderFallback_PatchLoadedRenderers_m6207097F5CCA64E7C293C7E24CD958FAEC3B8444(s_fallback, NULL);
+\t\t\t\t\tOriPortShaderFallback_PatchLoadedRenderers_m6207097F5CCA64E7C293C7E24CD958FAEC3B8444(s_fallbackObj, NULL);
 \t\t\t\t}
 \t\t\t\tShader_SetGlobalFloat_m8AA7A4D7D73914A00D9207D78621EDDF70602FB0(_stringLiteral682BF2EFA52E75C110EBBFF64FA09D54B09DA240, (-1.0f), NULL);
 \t\t\t\tOriPortManualPresenter_set_IsRenderingPresentedFrame_m1760BA79F65488022AE1A93714CC89A44E71424E_inline((bool)1, NULL);
