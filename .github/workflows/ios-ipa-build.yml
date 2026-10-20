@@ -37,12 +37,16 @@ jobs:
           cd release_download
 
           TARGET_TAG="${INPUT_TAG:-$EVENT_TAG}"
+          if [ -z "$TARGET_TAG" ]; then
+            TARGET_TAG=$(gh release list --repo "${{ github.repository }}" --limit 1 --json tagName -q '.[0].tagName' || true)
+          fi
+
           if [ -n "$TARGET_TAG" ]; then
             echo "Téléchargement des fichiers depuis la Release : $TARGET_TAG"
-            gh release download "$TARGET_TAG" --repo "${{ github.repository }}"
+            gh release download "$TARGET_TAG" --pattern "ios_xcode_build*" --repo "${{ github.repository }}" || gh release download "$TARGET_TAG" --pattern "*" --repo "${{ github.repository }}"
           else
             echo "Téléchargement des fichiers depuis la dernière Release..."
-            gh release download --repo "${{ github.repository }}"
+            gh release download --pattern "ios_xcode_build*" --repo "${{ github.repository }}" || gh release download --pattern "*" --repo "${{ github.repository }}"
           fi
 
           echo "Fichiers téléchargés depuis la Release :"
@@ -197,7 +201,18 @@ jobs:
           fi
 
           if [ -n "$TARGET_TAG" ]; then
-            echo "Publication de OriAndTheBlindForestDE_iOS.ipa dans la Release $TARGET_TAG..."
-            gh release upload "$TARGET_TAG" OriAndTheBlindForestDE_iOS.ipa --clobber --repo "${{ github.repository }}"
-            echo "IPA ajouté avec succès à la Release $TARGET_TAG !"
+            IPA_SIZE=$(stat -f%z "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa")
+            echo "Taille de l'IPA généré : $IPA_SIZE octets"
+            # GitHub Releases limite chaque fichier individuel à 2 Go (2147483648 octets)
+            if [ "$IPA_SIZE" -gt 2000000000 ]; then
+              echo "L'IPA dépasse la limite GitHub Release de 2 Go par fichier (4.3 Go). Découpage en parties de 1900 Mo avec 7-Zip (-mx=0, instantané)..."
+              7zz a -t7z -mx=0 -v1900m "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa.7z" "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa"
+              echo "Publication des parties OriAndTheBlindForestDE_iOS.ipa.7z.* dans la Release $TARGET_TAG..."
+              gh release upload "$TARGET_TAG" "$GITHUB_WORKSPACE"/OriAndTheBlindForestDE_iOS.ipa.7z.* --clobber --repo "${{ github.repository }}"
+              echo "✅ Parties OriAndTheBlindForestDE_iOS.ipa.7z.* ajoutées avec succès à la Release $TARGET_TAG !" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "Publication de OriAndTheBlindForestDE_iOS.ipa dans la Release $TARGET_TAG..."
+              gh release upload "$TARGET_TAG" "$GITHUB_WORKSPACE/OriAndTheBlindForestDE_iOS.ipa" --clobber --repo "${{ github.repository }}"
+              echo "✅ IPA ajouté avec succès à la Release $TARGET_TAG !" >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
