@@ -109,6 +109,9 @@ jobs:
             cp -f "ios_xcode_build/build_ipa.sh" "$XCODE_DIR/build_ipa.sh"
           fi
 
+          # Appliquer les patchs C++ IL2CPP pour iOS (corrige l'écran blanc / UnauthorizedAccessException sur '/' et désactive les P/Invoke Windows user32/xinput/kernel32/AVPro)
+          python3 "$GITHUB_WORKSPACE/scripts/patch_il2cpp_ios.py" "$XCODE_DIR"
+
           cd "$XCODE_DIR"
 
           # 1. S'assurer que tous les exécutables IL2CPP et scripts ont les droits d'exécution (perdus lors de la compression 7z sur Windows)
