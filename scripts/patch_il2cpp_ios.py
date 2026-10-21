@@ -296,21 +296,93 @@ def patch_assembly_csharp_1(cpp_dir: str) -> None:
     print(f"[OK] Patched Assembly-CSharp__1.cpp ({count} AVProWindowsMediaPlugin stubs + AtlasSpriteTextureBinder _DepthFlipScreen clamp)")
 
 
+def patch_assembly_csharp_3(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__3.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 1. Fix CameraPuppetController.Reset() so it also clears CinematicPuppet and calls UpdatePuppet(),
+    #    matching CameraPuppetController.OnGameReset() right above it.
+    reset_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void CameraPuppetController_Reset_m4707731712033B6CC8BE8954FF27AFACF81A5D8C"
+    reset_body = """\t{
+\t\tCameraPuppetController_SetTween_m0DADFF57AE798BFE43E09ABD5D3E30B408A21A39_inline(__this, (0.0f), NULL);
+\t\tCameraPuppetController_ClearWideScreenAdjustments_mABDC758FA3A9F15D4B69D568FDB72FC24B951D10(__this, NULL);
+\t\t__this->___CinematicPuppet = (Transform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1*)NULL;
+\t\tIl2CppCodeGenWriteBarrier((void**)(&__this->___CinematicPuppet), (void*)(Transform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1*)NULL);
+\t\tCameraPuppetController_UpdatePuppet_m83FF6BE15B71CDAE5E3AA80C885D3F2BF59794ED(__this, NULL);
+\t\treturn;
+\t}"""
+    content = replace_func_body(content, reset_decl, reset_body)
+
+    # 2. Add helper OriPort_SnapCameraToCurrentCharacter() so SeinPlaceholder can snap the gameplay camera
+    #    to Ori immediately after spawning and placing Ori on the ground (e.g. when skipping prologue).
+    snap_helper = """IL2CPP_EXTERN_C RuntimeClass* Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var;
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_GoToChaseMode_m4FF2DE77EE6BDACCE5FB7DA98F1BBACFA62DD916 (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_MoveCameraToTargetInstantly_m5B9CE9CF2DFB0F47E0386F9FF6EDB4423AEBD2EB (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, bool ___0_updateRoomBounds, const RuntimeMethod* method);
+
+IL2CPP_EXTERN_C void OriPort_SnapCameraToCurrentCharacter()
+{
+\tstatic bool s_init = false;
+\tif (!s_init)
+\t{
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var);
+\t\ts_init = true;
+\t}
+\ttry
+\t{
+\t\tGameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* cam = ((Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_StaticFields*)il2cpp_codegen_static_fields_for(Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var))->___Current;
+\t\tif (cam != NULL)
+\t\t{
+\t\t\tCameraController_tDC4FF0FA10418272A26E5E7539156F4F4A98E8C5* ctrl = cam->___Controller;
+\t\t\tif (ctrl != NULL && ctrl->___PuppetController != NULL)
+\t\t\t{
+\t\t\t\tCameraPuppetController_Reset_m4707731712033B6CC8BE8954FF27AFACF81A5D8C(ctrl->___PuppetController, NULL);
+\t\t\t}
+\t\t\tGameplayCamera_ChangeTargetToCurrentCharacter_m9AC01DA2753D17D03CFFB4AA54950E843A49BEDF(cam, NULL);
+\t\t\tGameplayCamera_GoToChaseMode_m4FF2DE77EE6BDACCE5FB7DA98F1BBACFA62DD916(cam, NULL);
+\t\t\tGameplayCamera_MoveCameraToTargetInstantly_m5B9CE9CF2DFB0F47E0386F9FF6EDB4423AEBD2EB(cam, (bool)1, NULL);
+\t\t}
+\t}
+\tcatch (Il2CppExceptionWrapper&)
+\t{
+\t}
+}
+"""
+    if "OriPort_SnapCameraToCurrentCharacter()" not in content:
+        content = content.replace(reset_decl, snap_helper + reset_decl, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__3.cpp (CameraPuppetController.Reset CinematicPuppet clear + OriPort_SnapCameraToCurrentCharacter)")
+
+
 def patch_assembly_csharp_10(cpp_dir: str) -> None:
     path = os.path.join(cpp_dir, "Assembly-CSharp__10.cpp")
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # On iOS / mobile, shader prewarming is skipped, so IsWarmingShadersCondition.Validate()
-    # must return true so the introLogos endSequence does not wait forever at step
-    # "06. Wait until Is Warming Shaders Condition" before loading titleScreenSwallowsNest.
+    # 1. On iOS / mobile, shader prewarming is skipped, so IsWarmingShadersCondition.Validate()
+    #    must return true so the introLogos endSequence does not wait forever at step
+    #    "06. Wait until Is Warming Shaders Condition" before loading titleScreenSwallowsNest.
     validate_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool IsWarmingShadersCondition_Validate_mFCFCACC946962EA37D62CF20817494939A4F0ADC"
     validate_body = "\treturn (bool)1;"
     content = replace_func_body(content, validate_decl, validate_body)
 
+    # 2. LateStartHook destroys its own GameObject on frame 1 (in Start()), so any scene loaded
+    #    later via SceneManager/GoToSceneController that calls LateStartHook.AddLateStartMethod()
+    #    would otherwise enqueue callbacks into LateStartHook.Actions that never run!
+    #    Invoke the callback immediately if non-null.
+    latestart_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void LateStartHook_AddLateStartMethod_m0BF28236D8E0D47595B8DFA72EFD6142CBD04652"
+    latestart_body = """\tif (___0_method != NULL)
+\t{
+\t\tAction_Invoke_m7126A54DACA72B845424072887B5F3A51FC3808E_inline(___0_method, NULL);
+\t}
+\treturn;"""
+    content = replace_func_body(content, latestart_decl, latestart_body)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__10.cpp (IsWarmingShadersCondition.Validate -> true)")
+    print("[OK] Patched Assembly-CSharp__10.cpp (IsWarmingShadersCondition.Validate -> true + LateStartHook immediate invoke)")
 
 
 def patch_assembly_csharp_11(cpp_dir: str) -> None:
@@ -420,10 +492,9 @@ def patch_assembly_csharp_13(cpp_dir: str) -> None:
         content = content[:old_block_start] + content[rf_idx:]
 
     # Add external declarations and a 100% stateless in-place scene renderer & shader sanitizer:
-    # 1. Replaces broken Hidden/UberShader/* shaders in-place on the original Material instance:
-    #    - Uses OriPort/DistanceFieldText if _TxtTexture is assigned (text/UI/menus)
-    #    - Uses OriPort/FallbackUnlit otherwise (all atlas sprites, logos, characters, backgrounds)
-    #    - Preserves Material.renderQueue and keeps all SpriteAnimator/TransparencyAnimator references intact!
+    # 1. Preserves real converted Hidden/UberShader/* shaders! Only replaces Distance Field Text materials
+    #    (_TxtTexture != null) with OriPort/DistanceFieldText in-place on the original Material instance,
+    #    preserving Material.renderQueue and keeping all SpriteAnimator/TransparencyAnimator references intact!
     # 2. Clamps _DepthFlipScreen.x into [-100, 900] for Metal Reversed-Z.
     # 3. Disables Hidden/EarlyZWrite dummy opaque Lambert prepass renderers.
     extern_decls = """IL2CPP_EXTERN_C String_t* _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C;
@@ -467,7 +538,6 @@ static void OriPort_SanitizeSceneRenderers()
 \t}
 \ttry
 \t{
-\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* fallbackShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E, NULL);
 \t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* textShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD, NULL);
 \t\tRuntimeTypeHandle_t332A452B8B6179E4469B69525D0FE82A88030F7B rHandle = { reinterpret_cast<intptr_t>(Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_0_0_0_var) };
 \t\til2cpp_codegen_runtime_class_init_inline(Type_t_il2cpp_TypeInfo_var);
@@ -516,11 +586,6 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, textShader, NULL);
 \t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
 \t\t\t\t\t\t}
-\t\t\t\t\t\telse if (fallbackShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(fallbackShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
-\t\t\t\t\t\t{
-\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, fallbackShader, NULL);
-\t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
-\t\t\t\t\t\t}
 \t\t\t\t\t}
 \t\t\t\t}
 \t\t\t\tif (Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL))
@@ -543,7 +608,7 @@ static void OriPort_SanitizeSceneRenderers()
     content = content.replace(render_frame_decl, extern_decls + render_frame_decl, 1)
 
     # 1. In OriPortManualPresenter_RenderFrame:
-    #    - Periodically run OriPort_SanitizeSceneRenderers() (every 15 frames) before Camera.Render()
+    #    - Periodically run OriPort_SanitizeSceneRenderers() (every 60 frames) before Camera.Render()
     #    - Call OriPortManualPresenter_UpdateAlphaGrab(__this, V_2, V_3, NULL) after Camera.Render()
     #    - Do NOT call OriPortManualPresenter_RenderUserInterface (UberPostProcess.DoCompatibilityPost already renders UI cameras, and RenderUserInterface logs "Tag: UICamera is not defined.")
     old_render_call = """\t\t\t\tShader_SetGlobalFloat_m8AA7A4D7D73914A00D9207D78621EDDF70602FB0(_stringLiteral682BF2EFA52E75C110EBBFF64FA09D54B09DA240, (-1.0f), NULL);
@@ -554,7 +619,7 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\tgoto IL_01b7;"""
 
     new_render_call = """\t\t\t\tstatic int32_t s_sanitizeCounter = 0;
-\t\t\t\tif ((s_sanitizeCounter++ % 15) == 0)
+\t\t\t\tif ((s_sanitizeCounter++ % 60) == 0)
 \t\t\t\t{
 \t\t\t\t\tOriPort_SanitizeSceneRenderers();
 \t\t\t\t}
@@ -576,6 +641,8 @@ static void OriPort_SanitizeSceneRenderers()
         if old_render_call not in content:
             raise RuntimeError("Could not find Camera_Render block in OriPortManualPresenter_RenderFrame")
         content = content.replace(old_render_call, new_render_call, 1)
+    else:
+        content = content.replace("if ((s_sanitizeCounter++ % 15) == 0)", "if ((s_sanitizeCounter++ % 60) == 0)")
 
     # 2. Wrap OriPortManualPresenter_RenderFrame call inside U3CStartU3Ed__13_MoveNext in a try/catch
     #    so that if any single frame ever throws a managed exception during rendering, the
@@ -611,23 +678,13 @@ static void OriPort_SanitizeSceneRenderers()
             raise RuntimeError("Could not find IL_003d block in U3CStartU3Ed__13_MoveNext")
         content = content.replace(old_movenext_call, new_movenext_call, 1)
 
-    # 3. Fix GUI.depth in OriPortManualPresenter_OnGUI AND draw OriPortTouchControls directly after the game frame
-    #    so touch controls are guaranteed to appear on top of the game frame!
+    # 3. Fix GUI.depth in OriPortManualPresenter_OnGUI and hide OriPortTouchControls (user plays with a gamepad)
     on_gui_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_OnGUI_m797B8337761723FC6A2D02EDAF956B10ED279B12"
-    on_gui_extern = (
-        "IL2CPP_EXTERN_C RuntimeClass* OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var;\n"
-        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortTouchControls_EnsureExists_mBF7B6FD311CEC45FF484A0ADCA9A48202D166127 (const RuntimeMethod* method);\n"
-        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortTouchControls_OnGUI_mD2B0EE0FFFEA33BB33AD5E991BBE88CDD72F3B6D (OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611* __this, const RuntimeMethod* method);\n"
-    )
-    if "OriPortTouchControls_OnGUI_mD2B0EE0FFFEA33BB33AD5E991BBE88CDD72F3B6D (OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611* __this, const RuntimeMethod* method);" not in content:
-        content = content.replace(on_gui_decl, on_gui_extern + on_gui_decl, 1)
-
     on_gui_body = """\tstatic bool s_Il2CppMethodInitialized;
 \tif (!s_Il2CppMethodInitialized)
 \t{
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&GUI_tA9CDB3D69DB13D51AD83ABDB587EF95947EC2D2A_il2cpp_TypeInfo_var);
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
-\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var);
 \t\ts_Il2CppMethodInitialized = true;
 \t}
 \t{
@@ -667,19 +724,6 @@ static void OriPort_SanitizeSceneRenderers()
 \t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D L_8 = __this->___m_displayRect;
 \t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_9 = __this->___m_frame;
 \t\tGUI_DrawTexture_m05F173ECE6F2D78FFBDEB0052EB58AC2B5A7420E(L_8, L_9, 0, (bool)0, NULL);
-\t\ttry
-\t\t{
-\t\t\til2cpp_codegen_runtime_class_init_inline(OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var);
-\t\t\tOriPortTouchControls_EnsureExists_mBF7B6FD311CEC45FF484A0ADCA9A48202D166127(NULL);
-\t\t\tOriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611* tc = ((OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_StaticFields*)il2cpp_codegen_static_fields_for(OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var))->___s_instance;
-\t\t\tif (tc != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(tc, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
-\t\t\t{
-\t\t\t\tOriPortTouchControls_OnGUI_mD2B0EE0FFFEA33BB33AD5E991BBE88CDD72F3B6D(tc, NULL);
-\t\t\t}
-\t\t}
-\t\tcatch (Il2CppExceptionWrapper&)
-\t\t{
-\t\t}
 \t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(L_5, NULL);
 \t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(L_4, NULL);
 \t}
@@ -690,28 +734,59 @@ IL_0060:
 \t}"""
     content = replace_func_body(content, on_gui_decl, on_gui_body)
 
-    # 4. Enable OriPortTouchControls on the title screen as well as in gameplay
+    # 4. Hide OriPortTouchControls completely (return false for GameplayControlsEnabled)
     touch_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool OriPortTouchControls_get_GameplayControlsEnabled_mF19030CD53AA9F354B8004DF880315F11D19BFA5"
-    touch_body = """\tstatic bool s_Il2CppMethodInitialized;
-\tif (!s_Il2CppMethodInitialized)
-\t{
-\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var);
-\t\ts_Il2CppMethodInitialized = true;
-\t}
-\t{
-\t\til2cpp_codegen_runtime_class_init_inline(OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var);
-\t\treturn OriPortTouchControls_get_SupportedPlatform_mA634742AAD4C96C71BBFC1E471F194EA0450CF51(NULL);
-\t}"""
+    touch_body = "\treturn (bool)0;"
     content = replace_func_body(content, touch_decl, touch_body)
 
-    # 5. Also ensure OriPortShaderFallback_IsRecoveredShader always returns false
+    # 5. Make OriPortShaderFallback_IsRecoveredShader return true and PatchLoadedRenderers no-op
+    #    so OriPortShaderFallback never clones/replaces real Hidden/UberShader/* materials or spikes the CPU!
     is_rec_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool OriPortShaderFallback_IsRecoveredShader_m1A7E0555FB0BC694339005AED36D901FFBE886A4"
-    is_rec_body = "\treturn (bool)0;"
+    is_rec_body = "\treturn (bool)1;"
     content = replace_func_body(content, is_rec_decl, is_rec_body)
+
+    patch_renderers_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortShaderFallback_PatchLoadedRenderers_m6207097F5CCA64E7C293C7E24CD958FAEC3B8444"
+    patch_renderers_body = "\treturn;"
+    content = replace_func_body(content, patch_renderers_decl, patch_renderers_body)
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__13.cpp (OriPortManualPresenter AlphaGrab + in-place shader/renderer sanitizer + TouchControls OnGUI)")
+    print("[OK] Patched Assembly-CSharp__13.cpp (Preserved real UberShaders + disabled OriPortShaderFallback material cloning + hid TouchControls)")
+
+
+def patch_assembly_csharp_21(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__21.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    extern_snap = "IL2CPP_EXTERN_C void OriPort_SnapCameraToCurrentCharacter();\n"
+    sein_after_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void SeinPlaceholder_AfterLoadingFromMasterFinishedAfterInstantiation_mE35B1CC48FEB0E9B5FAF70356BC9EB9AA4B2448C"
+    if extern_snap not in content:
+        content = content.replace(sein_after_decl, extern_snap + sein_after_decl, 1)
+
+    old_il_00cf = """\t\tGameController_SetupGameplay_m4E0B29AA5DFC4661545DD09039FB67D56757BC06(L_24, L_25, L_26, NULL);
+\t}
+
+IL_00cf:
+\t{
+\t\treturn;
+\t}"""
+    new_il_00cf = """\t\tGameController_SetupGameplay_m4E0B29AA5DFC4661545DD09039FB67D56757BC06(L_24, L_25, L_26, NULL);
+\t}
+
+IL_00cf:
+\t{
+\t\tOriPort_SnapCameraToCurrentCharacter();
+\t\treturn;
+\t}"""
+    if "OriPort_SnapCameraToCurrentCharacter();" not in content.split(sein_after_decl, 1)[1]:
+        if old_il_00cf not in content:
+            raise RuntimeError("Could not find IL_00cf in SeinPlaceholder_AfterLoadingFromMasterFinishedAfterInstantiation")
+        content = content.replace(old_il_00cf, new_il_00cf, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__21.cpp (SeinPlaceholder snaps GameplayCamera to Ori after spawn)")
 
 
 def patch_assembly_csharp_27(cpp_dir: str) -> None:
@@ -874,9 +949,11 @@ def main() -> None:
     patch_xinput(cpp_dir)
     patch_assembly_csharp_9(cpp_dir)
     patch_assembly_csharp_1(cpp_dir)
+    patch_assembly_csharp_3(cpp_dir)
     patch_assembly_csharp_10(cpp_dir)
     patch_assembly_csharp_11(cpp_dir)
     patch_assembly_csharp_13(cpp_dir)
+    patch_assembly_csharp_21(cpp_dir)
     patch_assembly_csharp_27(cpp_dir)
     patch_assembly_csharp_29(cpp_dir)
     print("All iOS IL2CPP runtime patches applied successfully!")
