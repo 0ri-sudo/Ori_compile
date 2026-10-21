@@ -318,8 +318,8 @@ def patch_assembly_csharp_3(cpp_dir: str) -> None:
     #    to Ori immediately after spawning and placing Ori on the ground (e.g. when skipping prologue).
     snap_helper = """IL2CPP_EXTERN_C RuntimeClass* Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void CameraPuppetController_Reset_m4707731712033B6CC8BE8954FF27AFACF81A5D8C (CameraPuppetController_tE58C8D776D2A6D6F92B40603A306EB81D2509F10* __this, const RuntimeMethod* method);
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_GoToChaseMode_m4FF2DE77EE6BDACCE5FB7DA98F1BBACFA62DD916 (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, const RuntimeMethod* method);
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_MoveCameraToTargetInstantly_m5B9CE9CF2DFB0F47E0386F9FF6EDB4423AEBD2EB (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, bool ___0_updateRoomBounds, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_GoToChaseMode_mFFC2F96AFB013160811FCF9DBACC7EB92561EB40 (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_MoveCameraToTargetInstantly_m74A1E7974672F8B1DEFE7756070B1A7B3072F2B6 (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, bool ___0_updateTargetPosition, const RuntimeMethod* method);
 
 IL2CPP_EXTERN_C void OriPort_SnapCameraToCurrentCharacter()
 {
@@ -340,8 +340,8 @@ IL2CPP_EXTERN_C void OriPort_SnapCameraToCurrentCharacter()
 \t\t\t\tCameraPuppetController_Reset_m4707731712033B6CC8BE8954FF27AFACF81A5D8C(ctrl->___PuppetController, NULL);
 \t\t\t}
 \t\t\tGameplayCamera_ChangeTargetToCurrentCharacter_m9AC01DA2753D17D03CFFB4AA54950E843A49BEDF(cam, NULL);
-\t\t\tGameplayCamera_GoToChaseMode_m4FF2DE77EE6BDACCE5FB7DA98F1BBACFA62DD916(cam, NULL);
-\t\t\tGameplayCamera_MoveCameraToTargetInstantly_m5B9CE9CF2DFB0F47E0386F9FF6EDB4423AEBD2EB(cam, (bool)1, NULL);
+\t\t\tGameplayCamera_GoToChaseMode_mFFC2F96AFB013160811FCF9DBACC7EB92561EB40(cam, NULL);
+\t\t\tGameplayCamera_MoveCameraToTargetInstantly_m74A1E7974672F8B1DEFE7756070B1A7B3072F2B6(cam, (bool)1, NULL);
 \t\t}
 \t}
 \tcatch (Il2CppExceptionWrapper&)
@@ -349,12 +349,16 @@ IL2CPP_EXTERN_C void OriPort_SnapCameraToCurrentCharacter()
 \t}
 }
 """
-    old_snap_idx = content.find("IL2CPP_EXTERN_C RuntimeClass* Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var;\nIL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_GoToChaseMode")
-    reset_idx = content.find(reset_decl)
-    if old_snap_idx != -1 and old_snap_idx < reset_idx:
-        content = content[:old_snap_idx] + content[reset_idx:]
-    if "OriPort_SnapCameraToCurrentCharacter()" not in content:
-        content = content.replace(reset_decl, snap_helper + reset_decl, 1)
+    old_snap_idx = content.find("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void CameraPuppetController_OnGameReset_mB50FE1A9F4211CBC1D1EBC9B942F7F56C4B29CC0")
+    reset_def = reset_decl + " (CameraPuppetController_tE58C8D776D2A6D6F92B40603A306EB81D2509F10* __this, const RuntimeMethod* method) \n{"
+    if reset_def not in content:
+        reset_def = reset_decl + " (CameraPuppetController_tE58C8D776D2A6D6F92B40603A306EB81D2509F10* __this, const RuntimeMethod* method)\n{"
+    reset_idx = content.find(reset_def)
+    if old_snap_idx != -1 and reset_idx != -1:
+        after_ongamereset = content.find("return;\n\t}\n}", old_snap_idx)
+        if after_ongamereset != -1 and after_ongamereset < reset_idx:
+            block_start = after_ongamereset + len("return;\n\t}\n}\n")
+            content = content[:block_start] + snap_helper + content[reset_idx:]
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
