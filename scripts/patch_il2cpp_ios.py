@@ -296,12 +296,40 @@ def patch_assembly_csharp_1(cpp_dir: str) -> None:
     print(f"[OK] Patched Assembly-CSharp__1.cpp ({count} AVProWindowsMediaPlugin stubs + AtlasSpriteTextureBinder _DepthFlipScreen clamp)")
 
 
+def patch_assembly_csharp_10(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__10.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # On iOS / mobile, shader prewarming is skipped, so IsWarmingShadersCondition.Validate()
+    # must return true so the introLogos endSequence does not wait forever at step
+    # "06. Wait until Is Warming Shaders Condition" before loading titleScreenSwallowsNest.
+    validate_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool IsWarmingShadersCondition_Validate_mFCFCACC946962EA37D62CF20817494939A4F0ADC"
+    validate_body = "\treturn (bool)1;"
+    content = replace_func_body(content, validate_decl, validate_body)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__10.cpp (IsWarmingShadersCondition.Validate -> true)")
+
+
 def patch_assembly_csharp_11(cpp_dir: str) -> None:
     path = os.path.join(cpp_dir, "Assembly-CSharp__11.cpp")
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Guard MenuScreenManager.Instantiate against null prefabs (e.g. OptionsPrefab / PauseScreenPrefab on title screen)
+    # 1. When LoadingBootstrap skips shader prewarming on mobile, also mark UberShaderPrewarmer.IsComplete = true
+    old_skip_check = "((UberShaderPrewarmer_t82F72BE4A89799766DCDFA838F76DA4FD5625E31_StaticFields*)il2cpp_codegen_static_fields_for(UberShaderPrewarmer_t82F72BE4A89799766DCDFA838F76DA4FD5625E31_il2cpp_TypeInfo_var))->___s_skipLoadedCheck = (bool)1;"
+    new_skip_check = (
+        "((UberShaderPrewarmer_t82F72BE4A89799766DCDFA838F76DA4FD5625E31_StaticFields*)il2cpp_codegen_static_fields_for(UberShaderPrewarmer_t82F72BE4A89799766DCDFA838F76DA4FD5625E31_il2cpp_TypeInfo_var))->___s_skipLoadedCheck = (bool)1;\n"
+        "\t\t((UberShaderPrewarmer_t82F72BE4A89799766DCDFA838F76DA4FD5625E31_StaticFields*)il2cpp_codegen_static_fields_for(UberShaderPrewarmer_t82F72BE4A89799766DCDFA838F76DA4FD5625E31_il2cpp_TypeInfo_var))->___IsComplete = (bool)1;"
+    )
+    if "___IsComplete = (bool)1;" not in content:
+        if old_skip_check not in content:
+            raise RuntimeError("Could not find ___s_skipLoadedCheck assignment in LoadingBootstrap (Assembly-CSharp__11.cpp)")
+        content = content.replace(old_skip_check, new_skip_check)
+
+    # 2. Guard MenuScreenManager.Instantiate against null prefabs (e.g. OptionsPrefab / PauseScreenPrefab on title screen)
     inst_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR GameObject_t76FEDD663AB33C991A9C9A23129337651094216F* MenuScreenManager_Instantiate_m792DCC5C8411B311F2866C149A325B618AD01E12"
     inst_body = """\tstatic bool s_Il2CppMethodInitialized;
 \tif (!s_Il2CppMethodInitialized)
@@ -371,7 +399,7 @@ def patch_assembly_csharp_11(cpp_dir: str) -> None:
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__11.cpp (MenuScreenManager.Instantiate null prefab guards)")
+    print("[OK] Patched Assembly-CSharp__11.cpp (LoadingBootstrap IsComplete + MenuScreenManager.Instantiate null prefab guards)")
 
 
 def patch_assembly_csharp_13(cpp_dir: str) -> None:
@@ -490,7 +518,8 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\t\t\t}
 \t\t\t\t\t\telse if (fallbackShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(fallbackShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
 \t\t\t\t\t\t{
-\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD55E15424C171_placeholder: ;
+\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, fallbackShader, NULL);
+\t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
 \t\t\t\t\t\t}
 \t\t\t\t\t}
 \t\t\t\t}
@@ -510,10 +539,7 @@ static void OriPort_SanitizeSceneRenderers()
 \t{
 \t}
 }
-""".replace(
-        "Material_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD55E15424C171_placeholder: ;",
-        "Material_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, fallbackShader, NULL);\n\t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);"
-    )
+"""
     content = content.replace(render_frame_decl, extern_decls + render_frame_decl, 1)
 
     # 1. In OriPortManualPresenter_RenderFrame:
@@ -585,16 +611,84 @@ static void OriPort_SanitizeSceneRenderers()
             raise RuntimeError("Could not find IL_003d block in U3CStartU3Ed__13_MoveNext")
         content = content.replace(old_movenext_call, new_movenext_call, 1)
 
-    # 3. Fix GUI.depth in OriPortManualPresenter_OnGUI:
-    #    In Unity IMGUI, lower GUI.depth draws ON TOP. OriPortManualPresenter_OnGUI had GUI.depth = -10000
-    #    while OriPortTouchControls_OnGUI has GUI.depth = -1000, so the opaque game frame covered the touch controls!
-    #    Set OriPortManualPresenter_OnGUI's GUI.depth to 1000 so OriPortTouchControls (-1000) renders on top of the game frame.
-    old_gui_depth = "GUI_set_depth_m37E8C151AD6D1B28DDFABB64A0974398AA8EC44E(((int32_t)-10000), NULL);"
-    new_gui_depth = "GUI_set_depth_m37E8C151AD6D1B28DDFABB64A0974398AA8EC44E(((int32_t)1000), NULL);"
-    if old_gui_depth in content:
-        content = content.replace(old_gui_depth, new_gui_depth, 1)
-    elif new_gui_depth not in content:
-        raise RuntimeError("Could not find GUI_set_depth(-10000) in OriPortManualPresenter_OnGUI")
+    # 3. Fix GUI.depth in OriPortManualPresenter_OnGUI AND draw OriPortTouchControls directly after the game frame
+    #    so touch controls are guaranteed to appear on top of the game frame!
+    on_gui_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_OnGUI_m797B8337761723FC6A2D02EDAF956B10ED279B12"
+    on_gui_extern = (
+        "IL2CPP_EXTERN_C RuntimeClass* OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var;\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortTouchControls_EnsureExists_mBF7B6FD311CEC45FF484A0ADCA9A48202D166127 (const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortTouchControls_OnGUI_mD2B0EE0FFFEA33BB33AD5E991BBE88CDD72F3B6D (OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611* __this, const RuntimeMethod* method);\n"
+    )
+    if "OriPortTouchControls_OnGUI_mD2B0EE0FFFEA33BB33AD5E991BBE88CDD72F3B6D (OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611* __this, const RuntimeMethod* method);" not in content:
+        content = content.replace(on_gui_decl, on_gui_extern + on_gui_decl, 1)
+
+    on_gui_body = """\tstatic bool s_Il2CppMethodInitialized;
+\tif (!s_Il2CppMethodInitialized)
+\t{
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&GUI_tA9CDB3D69DB13D51AD83ABDB587EF95947EC2D2A_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var);
+\t\ts_Il2CppMethodInitialized = true;
+\t}
+\t{
+\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_0 = __this->___m_frame;
+\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\tbool L_1;
+\t\tL_1 = Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(L_0, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL);
+\t\tif (L_1)
+\t\t{
+\t\t\tgoto IL_0060;
+\t\t}
+\t}
+\t{
+\t\tEvent_tEBC6F24B56CE22B9C9AD1AC6C24A6B83BC3860CB* L_2;
+\t\tL_2 = Event_get_current_mBD7135E10C392EAD61AC0A0D2489EF758C8A3FAD(NULL);
+\t\tNullCheck(L_2);
+\t\tint32_t L_3;
+\t\tL_3 = Event_get_type_m8A825D6DA432B967DAA3E22E5C8571620A75F8A8(L_2, NULL);
+\t\tif ((!(((uint32_t)L_3) == ((uint32_t)7))))
+\t\t{
+\t\t\tgoto IL_0060;
+\t\t}
+\t}
+\t{
+\t\til2cpp_codegen_runtime_class_init_inline(GUI_tA9CDB3D69DB13D51AD83ABDB587EF95947EC2D2A_il2cpp_TypeInfo_var);
+\t\tGUI_set_depth_m37E8C151AD6D1B28DDFABB64A0974398AA8EC44E(((int32_t)1000), NULL);
+\t\tMatrix4x4_tDB70CF134A14BA38190C59AA700BCE10E2AED3E6 L_4;
+\t\tL_4 = GUI_get_matrix_m3CA02DED0598EE32BD9E66CA533A78EFB0A246FC(NULL);
+\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F L_5;
+\t\tL_5 = GUI_get_color_m15488B4AD785D10DEB5C66398D0FA9A0C0EA7ABB(NULL);
+\t\tMatrix4x4_tDB70CF134A14BA38190C59AA700BCE10E2AED3E6 L_6;
+\t\tL_6 = Matrix4x4_get_identity_m6568A73831F3E2D587420D20FF423959D7D8AB56_inline(NULL);
+\t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(L_6, NULL);
+\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F L_7;
+\t\tL_7 = Color_get_white_m068F5AF879B0FCA584E3693F762EA41BB65532C6_inline(NULL);
+\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(L_7, NULL);
+\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D L_8 = __this->___m_displayRect;
+\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_9 = __this->___m_frame;
+\t\tGUI_DrawTexture_m05F173ECE6F2D78FFBDEB0052EB58AC2B5A7420E(L_8, L_9, 0, (bool)0, NULL);
+\t\ttry
+\t\t{
+\t\t\til2cpp_codegen_runtime_class_init_inline(OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var);
+\t\t\tOriPortTouchControls_EnsureExists_mBF7B6FD311CEC45FF484A0ADCA9A48202D166127(NULL);
+\t\t\tOriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611* tc = ((OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_StaticFields*)il2cpp_codegen_static_fields_for(OriPortTouchControls_tA5DF2EC3B4DF297414247C1AD8789A9A15ABC611_il2cpp_TypeInfo_var))->___s_instance;
+\t\t\tif (tc != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(tc, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t{
+\t\t\t\tOriPortTouchControls_OnGUI_mD2B0EE0FFFEA33BB33AD5E991BBE88CDD72F3B6D(tc, NULL);
+\t\t\t}
+\t\t}
+\t\tcatch (Il2CppExceptionWrapper&)
+\t\t{
+\t\t}
+\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(L_5, NULL);
+\t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(L_4, NULL);
+\t}
+
+IL_0060:
+\t{
+\t\treturn;
+\t}"""
+    content = replace_func_body(content, on_gui_decl, on_gui_body)
 
     # 4. Enable OriPortTouchControls on the title screen as well as in gameplay
     touch_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool OriPortTouchControls_get_GameplayControlsEnabled_mF19030CD53AA9F354B8004DF880315F11D19BFA5"
@@ -617,7 +711,7 @@ static void OriPort_SanitizeSceneRenderers()
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__13.cpp (OriPortManualPresenter AlphaGrab + in-place shader/renderer sanitizer + GUI.depth + TouchControls)")
+    print("[OK] Patched Assembly-CSharp__13.cpp (OriPortManualPresenter AlphaGrab + in-place shader/renderer sanitizer + TouchControls OnGUI)")
 
 
 def patch_assembly_csharp_27(cpp_dir: str) -> None:
@@ -625,7 +719,7 @@ def patch_assembly_csharp_27(cpp_dir: str) -> None:
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Clamp L_15 (z) in UberShaderRenderQueue_SetRenderQueueExplicit so _DepthFlipScreen.x stays in [-100, 900]
+    # 1. Clamp L_15 (z) in UberShaderRenderQueue_SetRenderQueueExplicit so _DepthFlipScreen.x stays in [-100, 900]
     old_vec_set = "\t\tfloat L_15 = ___1_z;\n\t\tVector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 L_16 = V_1;"
     new_vec_set = (
         "\t\tfloat L_15 = ___1_z;\n"
@@ -637,9 +731,14 @@ def patch_assembly_csharp_27(cpp_dir: str) -> None:
             raise RuntimeError("Could not find L_15 assignment in UberShaderRenderQueue_SetRenderQueueExplicit")
         content = content.replace(old_vec_set, new_vec_set, 1)
 
+    # 2. Make UberShaderPrewarmer.WarmProgress return 1.0f when prewarming is skipped (Instance == null)
+    warm_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR float UberShaderPrewarmer_get_WarmProgress_mF0F575F8E3E8B5ECDA409B501D76D3CEB697B2A7"
+    warm_body = "\treturn 1.0f;"
+    content = replace_func_body(content, warm_decl, warm_body)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__27.cpp (UberShaderRenderQueue _DepthFlipScreen.x clamp)")
+    print("[OK] Patched Assembly-CSharp__27.cpp (UberShaderRenderQueue _DepthFlipScreen.x clamp + WarmProgress -> 1.0f)")
 
 
 def patch_assembly_csharp_29(cpp_dir: str) -> None:
@@ -775,6 +874,7 @@ def main() -> None:
     patch_xinput(cpp_dir)
     patch_assembly_csharp_9(cpp_dir)
     patch_assembly_csharp_1(cpp_dir)
+    patch_assembly_csharp_10(cpp_dir)
     patch_assembly_csharp_11(cpp_dir)
     patch_assembly_csharp_13(cpp_dir)
     patch_assembly_csharp_27(cpp_dir)
