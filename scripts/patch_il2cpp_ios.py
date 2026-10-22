@@ -1442,13 +1442,15 @@ def patch_assembly_csharp_26(cpp_dir: str) -> None:
 
     # 1. Fix UberAlphaBuffer.SetCurrentAlphaGrab to use Shader.SetGlobalTexture("_AlphaGrabTex", m_alphaBuffer)
     #    instead of the stripped/deprecated RenderTexture.SetGlobalShaderProperty.
-    extern_set_global_tex = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Shader_SetGlobalTexture_mAB95343764A1E9214DF3D80E029E03F6AD0BE230 (String_t* ___0_name, Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* ___1_value, const RuntimeMethod* method);\n"
+    extern_set_global_tex = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16 (String_t* ___0_name, Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* ___1_value, const RuntimeMethod* method);\n"
     alpha_grab_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberAlphaBuffer_SetCurrentAlphaGrab_m69077B2FA1A7F07E8B64E8E4FD884979B6F50E6C"
+    # Clean up old wrong hash if previously applied locally
+    content = content.replace("Shader_SetGlobalTexture_mAB95343764A1E9214DF3D80E029E03F6AD0BE230", "Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16")
     if extern_set_global_tex not in content:
         content = content.replace(alpha_grab_decl, extern_set_global_tex + alpha_grab_decl, 1)
 
     old_set_prop = "RenderTexture_SetGlobalShaderProperty_m7BBA88435EDF79EBB5275B3CF84EBEC897EEAAAA(L_2, _stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, NULL);"
-    new_set_prop = "Shader_SetGlobalTexture_mAB95343764A1E9214DF3D80E029E03F6AD0BE230(_stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, L_2, NULL);"
+    new_set_prop = "Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16(_stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, L_2, NULL);"
     if old_set_prop in content:
         content = content.replace(old_set_prop, new_set_prop, 1)
 
