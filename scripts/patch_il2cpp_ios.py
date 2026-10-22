@@ -196,9 +196,64 @@ def patch_assembly_csharp_28(cpp_dir: str) -> None:
     for decl, body in stubs:
         content = replace_func_body(content, decl, body)
 
+    # 2. Prevent WorldMapUI from crashing in Awake when GameMapUI.Instance is still null (because gameMap.prefab
+    #    is instantiated inactive by MenuScreenManager), and immediately deactivate worldMapScene after its
+    #    Awake initialization if GameMapUI is not currently visible so worldMapScene's perspCamera never
+    #    hijacks the in-game camera during gameplay!
+    old_wm_awake = """\t\tGameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF* L_3 = ((GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_StaticFields*)il2cpp_codegen_static_fields_for(GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_il2cpp_TypeInfo_var))->___Instance;
+\t\tNullCheck(L_3);
+\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* L_4 = L_3->___Group;
+\t\tNullCheck(L_2);
+\t\tTransform_set_parent_m9BD5E563B539DD5BEC342736B03F97B38A243234(L_2, L_4, NULL);"""
+    new_wm_awake = """\t\tGameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF* L_3 = ((GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_StaticFields*)il2cpp_codegen_static_fields_for(GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_il2cpp_TypeInfo_var))->___Instance;
+\t\tif (L_3 != NULL && L_2 != NULL)
+\t\t{
+\t\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* L_4 = L_3->___Group;
+\t\t\tTransform_set_parent_m9BD5E563B539DD5BEC342736B03F97B38A243234(L_2, L_4, NULL);
+\t\t}"""
+    if "if (L_3 != NULL && L_2 != NULL)" not in content:
+        if old_wm_awake not in content:
+            raise RuntimeError("Could not find WorldMapUI_Awake GameMapUI.Instance.Group block in Assembly-CSharp__28.cpp")
+        content = content.replace(old_wm_awake, new_wm_awake, 1)
+
+    old_wm_activate = """\t\tGameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF* L_1 = ((GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_StaticFields*)il2cpp_codegen_static_fields_for(GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_il2cpp_TypeInfo_var))->___Instance;
+\t\tNullCheck(L_1);
+\t\tbool L_2;"""
+    new_wm_activate = """\t\tGameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF* L_1 = ((GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_StaticFields*)il2cpp_codegen_static_fields_for(GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_il2cpp_TypeInfo_var))->___Instance;
+\t\tNullCheck(L_1);
+\t\tif (L_1->___Group != NULL)
+\t\t{
+\t\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* wmTrans = Component_get_transform_m2919A1D81931E6932C7F06D4C2F0AB8DDA9A5371(__this, NULL);
+\t\t\tif (wmTrans != NULL) { Transform_set_parent_m9BD5E563B539DD5BEC342736B03F97B38A243234(wmTrans, L_1->___Group, NULL); }
+\t\t}
+\t\tbool L_2;"""
+    if "if (L_1->___Group != NULL)" not in content:
+        if old_wm_activate not in content:
+            raise RuntimeError("Could not find WorldMapUI_Activate block in Assembly-CSharp__28.cpp")
+        content = content.replace(old_wm_activate, new_wm_activate, 1)
+
+    old_wm_loaded = """\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_10;
+\t\tL_10 = Component_get_gameObject_m57AEFBB14DB39EC476F740BA000E170355DE691B(L_9, NULL);
+\t\tNullCheck(L_10);
+\t\tGameObject_SetActive_m638E92E1E75E519E5B24CF150B08CA8E0CDFAB92(L_10, (bool)1, NULL);"""
+    new_wm_loaded = """\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_10;
+\t\tL_10 = Component_get_gameObject_m57AEFBB14DB39EC476F740BA000E170355DE691B(L_9, NULL);
+\t\tNullCheck(L_10);
+\t\tGameObject_SetActive_m638E92E1E75E519E5B24CF150B08CA8E0CDFAB92(L_10, (bool)1, NULL);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_il2cpp_TypeInfo_var);
+\t\tGameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF* gmInst = ((GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_StaticFields*)il2cpp_codegen_static_fields_for(GameMapUI_t0C9081A1B2D066C0431FEE3F737BF5FD6C7023EF_il2cpp_TypeInfo_var))->___Instance;
+\t\tif (gmInst == NULL || !gmInst->___m_isVisible)
+\t\t{
+\t\t\tGameObject_SetActive_m638E92E1E75E519E5B24CF150B08CA8E0CDFAB92(L_10, (bool)0, NULL);
+\t\t}"""
+    if "gmInst == NULL || !gmInst->___m_isVisible" not in content:
+        if old_wm_loaded not in content:
+            raise RuntimeError("Could not find WorldMapUI_OnFinishedLoading SetActive block in Assembly-CSharp__28.cpp")
+        content = content.replace(old_wm_loaded, new_wm_loaded, 1)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__28.cpp (WindowManager user32.dll stubs)")
+    print("[OK] Patched Assembly-CSharp__28.cpp (WindowManager user32.dll stubs + WorldMapUI camera hijack fix)")
 
 
 def patch_xinput(cpp_dir: str) -> None:
@@ -500,18 +555,21 @@ def patch_assembly_csharp_13(cpp_dir: str) -> None:
     if old_block_start != -1 and old_block_start < rf_idx:
         content = content[:old_block_start] + content[rf_idx:]
 
-    # Add external declarations and a 100% stateless in-place scene renderer & shader sanitizer:
-    # 1. Preserves real converted Hidden/UberShader/* shaders! Only replaces Distance Field Text materials
-    #    (_TxtTexture != null) with OriPort/DistanceFieldText in-place on the original Material instance,
-    #    preserving Material.renderQueue and keeping all SpriteAnimator/TransparencyAnimator references intact!
-    # 2. Clamps _DepthFlipScreen.x into [-100, 900] for Metal Reversed-Z.
-    # 3. Disables Hidden/EarlyZWrite dummy opaque Lambert prepass renderers.
+    # Add external declarations and a fast signature-gated in-place scene renderer & shader sanitizer:
+    # 1. Preserves all 3,697 real recovered Hidden/UberShader/* shaders (those with _OriPortRecovered).
+    # 2. Replaces Distance Field Text materials (_TxtTexture != null) with OriPort/DistanceFieldText in-place.
+    # 3. Replaces the 103 non-recovered unlit_dummy Hidden/UberShader/* shaders (missing _OriPortRecovered)
+    #    with OriPort/FallbackUnlit in-place (handling _MainTex_US_ATLAS_ST sub-sprite UV cropping,
+    #    _DepthFlipScreen.y 90-deg rotation, and SCREEN_RED/SCREEN_GREEN/SCREEN_BLUE chroma-key subtraction).
+    # 4. Clamps _DepthFlipScreen.x into [-100, 900] for Metal Reversed-Z.
+    # 5. Disables Hidden/EarlyZWrite dummy opaque Lambert prepass renderers.
     extern_decls = """IL2CPP_EXTERN_C String_t* _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C;
 IL2CPP_EXTERN_C String_t* _stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA;
 IL2CPP_EXTERN_C String_t* _stringLiteral82CBFBC9D96154286C59A7A832F44ACA59CCC81D;
 IL2CPP_EXTERN_C String_t* _stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093;
 IL2CPP_EXTERN_C String_t* _stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E;
 IL2CPP_EXTERN_C String_t* _stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD;
+IL2CPP_EXTERN_C String_t* _stringLiteralCE9C589CA1C6D1CB29B40C006FAA5870083004B1;
 IL2CPP_EXTERN_C const RuntimeType* Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_0_0_0_var;
 IL2CPP_EXTERN_C RuntimeClass* Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* Type_t_il2cpp_TypeInfo_var;
@@ -543,11 +601,11 @@ static void OriPort_SanitizeSceneRenderers()
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093);
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E);
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteralCE9C589CA1C6D1CB29B40C006FAA5870083004B1);
 \t\ts_init = true;
 \t}
 \ttry
 \t{
-\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* textShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD, NULL);
 \t\tRuntimeTypeHandle_t332A452B8B6179E4469B69525D0FE82A88030F7B rHandle = { reinterpret_cast<intptr_t>(Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_0_0_0_var) };
 \t\til2cpp_codegen_runtime_class_init_inline(Type_t_il2cpp_TypeInfo_var);
 \t\tType_t* rType = Type_GetTypeFromHandle_m6062B81682F79A4D6DF2640692EE6D9987858C57(rHandle, NULL);
@@ -555,6 +613,28 @@ static void OriPort_SanitizeSceneRenderers()
 \t\tObjectU5BU5D_tD4BF1BEC72A31DF6611C0B8FA3112AF128FC3F8A* objs = Object_FindObjectsOfType_m3F1266E2DA67B067B22A3105C8F86A4EECCFEC4A(rType, NULL);
 \t\tif (objs == NULL) return;
 \t\tint32_t count = (int32_t)(((RuntimeArray*)objs)->max_length);
+\t\tuint64_t sig = (uint64_t)count;
+\t\tfor (int32_t k = 0; k < count; k++)
+\t\t{
+\t\t\tsig = (sig * 1099511628211ULL) ^ (uint64_t)(uintptr_t)(objs->GetAt(static_cast<il2cpp_array_size_t>(k)));
+\t\t}
+\t\tstatic uint64_t s_lastSig = 0;
+\t\tstatic int32_t s_repeatPasses = 0;
+\t\tif (sig == s_lastSig && s_repeatPasses <= 0)
+\t\t{
+\t\t\treturn;
+\t\t}
+\t\tif (sig != s_lastSig)
+\t\t{
+\t\t\ts_lastSig = sig;
+\t\t\ts_repeatPasses = 1;
+\t\t}
+\t\telse
+\t\t{
+\t\t\ts_repeatPasses--;
+\t\t}
+\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* textShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD, NULL);
+\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* fallbackShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E, NULL);
 \t\tfor (int32_t i = 0; i < count; i++)
 \t\t{
 \t\t\tObject_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C* obj = objs->GetAt(static_cast<il2cpp_array_size_t>(i));
@@ -595,6 +675,14 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, textShader, NULL);
 \t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
 \t\t\t\t\t\t}
+\t\t\t\t\t\telse if (!Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteralCE9C589CA1C6D1CB29B40C006FAA5870083004B1, NULL))
+\t\t\t\t\t\t{
+\t\t\t\t\t\t\tif (fallbackShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(fallbackShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, fallbackShader, NULL);
+\t\t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
+\t\t\t\t\t\t\t}
+\t\t\t\t\t\t}
 \t\t\t\t\t}
 \t\t\t\t}
 \t\t\t\tif (Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL))
@@ -617,7 +705,7 @@ static void OriPort_SanitizeSceneRenderers()
     content = content.replace(render_frame_decl, extern_decls + render_frame_decl, 1)
 
     # 1. In OriPortManualPresenter_RenderFrame:
-    #    - Periodically run OriPort_SanitizeSceneRenderers() (every 60 frames) before Camera.Render()
+    #    - Periodically run OriPort_SanitizeSceneRenderers() (every 15 frames; fast-exits in 2us when scene is unchanged)
     #    - Call OriPortManualPresenter_UpdateAlphaGrab(__this, V_2, V_3, NULL) after Camera.Render()
     #    - Do NOT call OriPortManualPresenter_RenderUserInterface (UberPostProcess.DoCompatibilityPost already renders UI cameras, and RenderUserInterface logs "Tag: UICamera is not defined.")
     old_render_call = """\t\t\t\tShader_SetGlobalFloat_m8AA7A4D7D73914A00D9207D78621EDDF70602FB0(_stringLiteral682BF2EFA52E75C110EBBFF64FA09D54B09DA240, (-1.0f), NULL);
@@ -628,7 +716,7 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\tgoto IL_01b7;"""
 
     new_render_call = """\t\t\t\tstatic int32_t s_sanitizeCounter = 0;
-\t\t\t\tif ((s_sanitizeCounter++ % 60) == 0)
+\t\t\t\tif ((s_sanitizeCounter++ % 15) == 0)
 \t\t\t\t{
 \t\t\t\t\tOriPort_SanitizeSceneRenderers();
 \t\t\t\t}
@@ -651,7 +739,7 @@ static void OriPort_SanitizeSceneRenderers()
             raise RuntimeError("Could not find Camera_Render block in OriPortManualPresenter_RenderFrame")
         content = content.replace(old_render_call, new_render_call, 1)
     else:
-        content = content.replace("if ((s_sanitizeCounter++ % 15) == 0)", "if ((s_sanitizeCounter++ % 60) == 0)")
+        content = content.replace("if ((s_sanitizeCounter++ % 60) == 0)", "if ((s_sanitizeCounter++ % 15) == 0)")
 
     # 2. Wrap OriPortManualPresenter_RenderFrame call inside U3CStartU3Ed__13_MoveNext in a try/catch
     #    so that if any single frame ever throws a managed exception during rendering, the
@@ -748,8 +836,8 @@ IL_0060:
     touch_body = "\treturn (bool)0;"
     content = replace_func_body(content, touch_decl, touch_body)
 
-    # 5. Make OriPortShaderFallback_IsRecoveredShader return true and PatchLoadedRenderers no-op
-    #    so OriPortShaderFallback never clones/replaces real Hidden/UberShader/* materials or spikes the CPU!
+    # 5. Make OriPortShaderFallback_IsRecoveredShader return true, PatchLoadedRenderers no-op,
+    #    and stop U3CStartU3Ed__4_MoveNext coroutine immediately so it never allocates WaitForSeconds(0.25f) forever!
     is_rec_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool OriPortShaderFallback_IsRecoveredShader_m1A7E0555FB0BC694339005AED36D901FFBE886A4"
     is_rec_body = "\treturn (bool)1;"
     content = replace_func_body(content, is_rec_decl, is_rec_body)
@@ -758,9 +846,57 @@ IL_0060:
     patch_renderers_body = "\treturn;"
     content = replace_func_body(content, patch_renderers_decl, patch_renderers_body)
 
+    sf_movenext_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool U3CStartU3Ed__4_MoveNext_m2BF10473120F4BA707021D0DB37468B3C63A0289"
+    sf_movenext_body = "\treturn (bool)0;"
+    content = replace_func_body(content, sf_movenext_decl, sf_movenext_body)
+
+    # 6. Stub OriPortRuntimeDiagnostics completely so it never runs ProfilerRecorder queries, 512-float array sorts,
+    #    42-string CSV formatting, or synchronous StreamWriter.Flush() on the main thread (eliminates audio crackling!)
+    diag_stubs = [
+        ("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortRuntimeDiagnostics_Install_mE2919656F0C03CA9A485DFCE10032987B0DC96EF", "\treturn;"),
+        ("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortRuntimeDiagnostics_Awake_m8DE05A48E677F462DECE5945E0A13B2408BFCA73", "\treturn;"),
+        ("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortRuntimeDiagnostics_Update_mF6B737AB9052DBED28785F140CD6E66DF8D74E1A", "\treturn;"),
+        ("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortRuntimeDiagnostics_LateUpdate_mE10120DC1FDD78D8915AB1D2829DB999037DD03C", "\treturn;"),
+        ("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int64_t OriPortRuntimeDiagnostics_BeginDamage_mCDC816823F666832BBBC02DE1FF9538EC388C92E", "\treturn 0;"),
+        ("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int64_t OriPortRuntimeDiagnostics_BeginAttackPhase_m86422FA63A1D8968B0D4F54FFCBBDB96BBB419CF", "\treturn 0;"),
+        ("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortRuntimeDiagnostics_EndProjectileSpawn_m5754329BC94196904413A118AF602E991C8E0303", "\treturn;"),
+        ("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortRuntimeDiagnostics_EndProjectileImpact_m9F127212AD6CDFF35A0FC569E88595B89FB2DCC7", "\treturn;"),
+        ("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortRuntimeDiagnostics_EndDamage_mB50B0656EC05D41FC330BBBE930378C69E8CAB60", "\treturn;"),
+    ]
+    for decl, body in diag_stubs:
+        if decl in content:
+            content = replace_func_body(content, decl, body)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__13.cpp (Preserved real UberShaders + disabled OriPortShaderFallback material cloning + hid TouchControls)")
+    print("[OK] Patched Assembly-CSharp__13.cpp (Preserved 3697 recovered UberShaders + FallbackUnlit for 103 unlit_dummy shaders + disabled OriPortRuntimeDiagnostics stalls)")
+
+
+def patch_assembly_csharp_17(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__17.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # In SaveSlotUI_Awake, ScreenshotB (screenshotReflection) has localScale.y = -4.309868 (upside down)
+    # and sortingOrder = 3594 (above Screenshot's 3167). Applying the opaque circular mesh to ScreenshotB
+    # covers Screenshot with an upside-down preview! Disable ScreenshotB's Renderer instead.
+    extern_ren = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8 (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, bool ___0_value, const RuntimeMethod* method);\n"
+    awake_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void SaveSlotUI_Awake_mBC316003758B1A8BDF200E118164AABA0F5B8523"
+    if extern_ren not in content:
+        content = content.replace(awake_decl, extern_ren + awake_decl, 1)
+
+    old_refl = """\t\tRenderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* L_1 = __this->___ScreenshotB;
+\t\tSaveSlotUI_ApplyCircularScreenshotMesh_m0A61BF51D11D6B59721D164D32149EC10EAD0EB9(L_1, NULL);"""
+    new_refl = """\t\tRenderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* L_1 = __this->___ScreenshotB;
+\t\tif (L_1 != NULL) { Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(L_1, (bool)0, NULL); }"""
+    if "Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(L_1, (bool)0, NULL);" not in content:
+        if old_refl not in content:
+            raise RuntimeError("Could not find ScreenshotB ApplyCircularScreenshotMesh in SaveSlotUI_Awake (Assembly-CSharp__17.cpp)")
+        content = content.replace(old_refl, new_refl, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__17.cpp (SaveSlotUI.Awake disables upside-down ScreenshotB reflection overlay)")
 
 
 def patch_assembly_csharp_21(cpp_dir: str) -> None:
@@ -962,6 +1098,7 @@ def main() -> None:
     patch_assembly_csharp_10(cpp_dir)
     patch_assembly_csharp_11(cpp_dir)
     patch_assembly_csharp_13(cpp_dir)
+    patch_assembly_csharp_17(cpp_dir)
     patch_assembly_csharp_21(cpp_dir)
     patch_assembly_csharp_27(cpp_dir)
     patch_assembly_csharp_29(cpp_dir)
