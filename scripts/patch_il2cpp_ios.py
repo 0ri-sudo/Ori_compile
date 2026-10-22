@@ -356,21 +356,22 @@ def patch_assembly_csharp_3(cpp_dir: str) -> None:
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # 1. Fix CameraPuppetController.Reset() so it also clears CinematicPuppet and calls UpdatePuppet(),
-    #    matching CameraPuppetController.OnGameReset() right above it.
+    # 1. CameraPuppetController.Reset() is called by CameraGoThroughScrollLocks during
+    #    GameplayToCinematicAnimator transitions! It must NOT null out ___CinematicPuppet
+    #    (which was just assigned by GameplayToCinematicAnimator.Start()), otherwise
+    #    cutscene camera animations in the Prologue never move the camera!
     reset_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void CameraPuppetController_Reset_m4707731712033B6CC8BE8954FF27AFACF81A5D8C"
     reset_body = """\t{
 \t\tCameraPuppetController_SetTween_m0DADFF57AE798BFE43E09ABD5D3E30B408A21A39_inline(__this, (0.0f), NULL);
 \t\tCameraPuppetController_ClearWideScreenAdjustments_mABDC758FA3A9F15D4B69D568FDB72FC24B951D10(__this, NULL);
-\t\t__this->___CinematicPuppet = (Transform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1*)NULL;
-\t\tIl2CppCodeGenWriteBarrier((void**)(&__this->___CinematicPuppet), (void*)(Transform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1*)NULL);
 \t\tCameraPuppetController_UpdatePuppet_m83FF6BE15B71CDAE5E3AA80C885D3F2BF59794ED(__this, NULL);
 \t\treturn;
 \t}"""
     content = replace_func_body(content, reset_decl, reset_body)
 
     # 2. Add helper OriPort_SnapCameraToCurrentCharacter() so SeinPlaceholder can snap the gameplay camera
-    #    to Ori immediately after spawning and placing Ori on the ground (e.g. when skipping prologue).
+    #    to Ori when spawning in normal gameplay (e.g. when skipping prologue), WITHOUT overriding an
+    #    active cutscene camera puppet (when CinematicPuppet != NULL && Tween > 0.001f).
     snap_helper = """IL2CPP_EXTERN_C RuntimeClass* Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void CameraPuppetController_Reset_m4707731712033B6CC8BE8954FF27AFACF81A5D8C (CameraPuppetController_tE58C8D776D2A6D6F92B40603A306EB81D2509F10* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_GoToChaseMode_mFFC2F96AFB013160811FCF9DBACC7EB92561EB40 (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, const RuntimeMethod* method);
@@ -390,8 +391,15 @@ IL2CPP_EXTERN_C void OriPort_SnapCameraToCurrentCharacter()
 \t\tif (cam != NULL)
 \t\t{
 \t\t\tCameraController_tDC4FF0FA10418272A26E5E7539156F4F4A98E8C5* ctrl = cam->___Controller;
+\t\t\tif (ctrl != NULL && ctrl->___PuppetController != NULL && ctrl->___PuppetController->___CinematicPuppet != NULL && ctrl->___PuppetController->___Tween > 0.001f)
+\t\t\t{
+\t\t\t\tGameplayCamera_ChangeTargetToCurrentCharacter_m9AC01DA2753D17D03CFFB4AA54950E843A49BEDF(cam, NULL);
+\t\t\t\treturn;
+\t\t\t}
 \t\t\tif (ctrl != NULL && ctrl->___PuppetController != NULL)
 \t\t\t{
+\t\t\t\tctrl->___PuppetController->___CinematicPuppet = (Transform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1*)NULL;
+\t\t\t\tIl2CppCodeGenWriteBarrier((void**)(&ctrl->___PuppetController->___CinematicPuppet), (void*)(Transform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1*)NULL);
 \t\t\t\tCameraPuppetController_Reset_m4707731712033B6CC8BE8954FF27AFACF81A5D8C(ctrl->___PuppetController, NULL);
 \t\t\t}
 \t\t\tGameplayCamera_ChangeTargetToCurrentCharacter_m9AC01DA2753D17D03CFFB4AA54950E843A49BEDF(cam, NULL);
@@ -417,7 +425,7 @@ IL2CPP_EXTERN_C void OriPort_SnapCameraToCurrentCharacter()
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__3.cpp (CameraPuppetController.Reset CinematicPuppet clear + OriPort_SnapCameraToCurrentCharacter)")
+    print("[OK] Patched Assembly-CSharp__3.cpp (CameraPuppetController.Reset preserve CinematicPuppet + OriPort_SnapCameraToCurrentCharacter cutscene guard)")
 
 
 def patch_assembly_csharp_10(cpp_dir: str) -> None:
@@ -533,9 +541,81 @@ def patch_assembly_csharp_11(cpp_dir: str) -> None:
         "\t\tif (L_3 != NULL) { Utility_DontAssociateWithAnyScene_m7F5E614627B34BF7A9A23BC4D04A92FB23D3A98B(L_3, NULL); }",
     )
 
+    # 3. On titleScreenSwallowsNest, MenuScreenManager.OptionsPrefab is null in the scene inspector,
+    #    so clicking "Help & Options" on the title screen showed nothing because OptionsScreen.Instance was null!
+    #    Load "optionsScreen" from Resources if ___0_optionsPrefab is null.
+    setup_opt_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void MenuScreenManager_SetupOptionsScreen_m4319F519B9C1604B13FBBEFEA42618805497B653"
+    setup_opt_extern = (
+        "IL2CPP_EXTERN_C const RuntimeMethod* Resources_Load_TisGameObject_t76FEDD663AB33C991A9C9A23129337651094216F_m496A3B1B60A28F5E0397043974B848C9157B625A_RuntimeMethod_var;\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* Resources_Load_TisRuntimeObject_mD1AF6299B14F87ED1D1A6199A51480919F7C79D7_gshared (String_t* ___0_path, const RuntimeMethod* method);\n"
+    )
+    if "Resources_Load_TisGameObject_t76FEDD663AB33C991A9C9A23129337651094216F_m496A3B1B60A28F5E0397043974B848C9157B625A_RuntimeMethod_var" not in content:
+        content = content.replace(setup_opt_decl, setup_opt_extern + setup_opt_decl, 1)
+
+    setup_opt_body = """\tstatic bool s_Il2CppMethodInitialized;
+\tif (!s_Il2CppMethodInitialized)
+\t{
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&OptionsScreen_t24FF687BD9C0A19DACB887A477884D897299E340_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Resources_Load_TisGameObject_t76FEDD663AB33C991A9C9A23129337651094216F_m496A3B1B60A28F5E0397043974B848C9157B625A_RuntimeMethod_var);
+\t\ts_Il2CppMethodInitialized = true;
+\t}
+\t{
+\t\tOptionsScreen_t24FF687BD9C0A19DACB887A477884D897299E340* L_0 = ((OptionsScreen_t24FF687BD9C0A19DACB887A477884D897299E340_StaticFields*)il2cpp_codegen_static_fields_for(OptionsScreen_t24FF687BD9C0A19DACB887A477884D897299E340_il2cpp_TypeInfo_var))->___Instance;
+\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\tbool L_1;
+\t\tL_1 = Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(L_0, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL);
+\t\tif (!L_1)
+\t\t{
+\t\t\tgoto IL_0019;
+\t\t}
+\t}
+\t{
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_2 = ___0_optionsPrefab;
+\t\tif (Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(L_2, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t{
+\t\t\tL_2 = (GameObject_t76FEDD663AB33C991A9C9A23129337651094216F*)Resources_Load_TisRuntimeObject_mD1AF6299B14F87ED1D1A6199A51480919F7C79D7_gshared(il2cpp_codegen_string_new_wrapper("optionsScreen"), Resources_Load_TisGameObject_t76FEDD663AB33C991A9C9A23129337651094216F_m496A3B1B60A28F5E0397043974B848C9157B625A_RuntimeMethod_var);
+\t\t}
+\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_3;
+\t\tL_3 = MenuScreenManager_Instantiate_m792DCC5C8411B311F2866C149A325B618AD01E12(__this, L_2, NULL);
+\t\tif (L_3 != NULL) { Utility_DontAssociateWithAnyScene_m7F5E614627B34BF7A9A23BC4D04A92FB23D3A98B(L_3, NULL); }
+\t}
+
+IL_0019:
+\t{
+\t\treturn;
+\t}"""
+    content = replace_func_body(content, setup_opt_decl, setup_opt_body)
+
+    # 4. Prevent LegacyMaterialTransparencyAnimator and LegacyTransparancyAnimator from caching 0.0f
+    #    as m_originalValue / m_originalAlphas when a material starts at t=0 of a fade-in curve.
+    old_legacy_mat_alpha = "\t\tfloat L_7 = L_6.___a;\n\t\t__this->___m_originalValue = L_7;"
+    new_legacy_mat_alpha = "\t\tfloat L_7 = L_6.___a;\n\t\tif (L_7 <= 0.001f) { L_7 = 0.5f; }\n\t\t__this->___m_originalValue = L_7;"
+    if "if (L_7 <= 0.001f) { L_7 = 0.5f; }" not in content:
+        if old_legacy_mat_alpha not in content:
+            raise RuntimeError("Could not find L_7 assignment in LegacyMaterialTransparencyAnimator_Start")
+        content = content.replace(old_legacy_mat_alpha, new_legacy_mat_alpha, 1)
+
+    old_legacy_trans_alpha = "\t\tfloat L_45 = ((L_43)->GetAddressAt(static_cast<il2cpp_array_size_t>(L_44)))->___a;\n\t\tNullCheck(L_41);\n\t\t(L_41)->SetAt(static_cast<il2cpp_array_size_t>(L_42), (float)L_45);"
+    new_legacy_trans_alpha = "\t\tfloat L_45 = ((L_43)->GetAddressAt(static_cast<il2cpp_array_size_t>(L_44)))->___a;\n\t\tif (L_45 <= 0.001f) { L_45 = 0.5f; }\n\t\tNullCheck(L_41);\n\t\t(L_41)->SetAt(static_cast<il2cpp_array_size_t>(L_42), (float)L_45);"
+    if "if (L_45 <= 0.001f) { L_45 = 0.5f; }" not in content:
+        if old_legacy_trans_alpha not in content:
+            raise RuntimeError("Could not find L_45 assignment in LegacyTransparancyAnimator_CacheShaderInformation")
+        content = content.replace(old_legacy_trans_alpha, new_legacy_trans_alpha, 1)
+
+    # 5. Lock Time.fixedDeltaTime to 1/60s (0.0166666675f) in MaxDeviceFrameRate.Awake so 120Hz ProMotion
+    #    iPhones do not run FixedUpdate / enemy movement at 2x speed!
+    max_fps_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void MaxDeviceFrameRate_Awake_mE3A38FA8B51F38CF84D3F20EFECB901273426778"
+    max_fps_body = """\t{
+\t\tTime_set_fixedDeltaTime_m8D8417B234CFF76AF81890D5AF67D8C54EFD189F((0.0166666675f), NULL);
+\t\tBehaviour_set_enabled_mF1DCFE60EB09E0529FE9476CA804A3AA2D72B16A(__this, (bool)0, NULL);
+\t\treturn;
+\t}"""
+    content = replace_func_body(content, max_fps_decl, max_fps_body)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__11.cpp (LoadingBootstrap IsComplete + MenuScreenManager.Instantiate null prefab guards)")
+    print("[OK] Patched Assembly-CSharp__11.cpp (LoadingBootstrap + OptionsScreen Resources fallback + LegacyTransparencyAnimator alpha clamp + 60Hz FixedUpdate)")
 
 
 def patch_assembly_csharp_13(cpp_dir: str) -> None:
@@ -584,7 +664,7 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Material_SetVector_m69444B8040D955821F241113446CC8713C9E12D1 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 ___1_value, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool String_StartsWith_mF75DBA1EB709811E711B44E26FF919C88A8E65C0 (String_t* __this, String_t* ___0_value, const RuntimeMethod* method);
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_UpdateAlphaGrab_m6D5C8A797031A3CAABF1F73E449DA1A147570CEF (OriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* __this, int32_t ___0_width, int32_t ___1_height, const RuntimeMethod* method);
+IL2CPP_EXTERN_C void OriPort_UpdateTurbulenceGlobals();
 
 static void OriPort_SanitizeSceneRenderers()
 {
@@ -734,12 +814,27 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\t}
 \t\t\t\tgoto IL_01b7;"""
 
-    if "OriPort_SanitizeSceneRenderers();" not in content:
+    prev_render_call = new_render_call
+    new_render_call = (
+        "\t\t\t\tstatic int32_t s_sanitizeCounter = 0;\n"
+        "\t\t\t\tif ((s_sanitizeCounter++ % 15) == 0)\n"
+        "\t\t\t\t{\n"
+        "\t\t\t\t\tOriPort_SanitizeSceneRenderers();\n"
+        "\t\t\t\t}\n"
+        "\t\t\t\tOriPort_UpdateTurbulenceGlobals();\n"
+        "\t\t\t\tShader_SetGlobalFloat_m8AA7A4D7D73914A00D9207D78621EDDF70602FB0(_stringLiteral682BF2EFA52E75C110EBBFF64FA09D54B09DA240, (-1.0f), NULL);\n"
+        "\t\t\t\tOriPortManualPresenter_set_IsRenderingPresentedFrame_m1760BA79F65488022AE1A93714CC89A44E71424E_inline((bool)1, NULL);\n"
+        "\t\t\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_71 = V_1;\n"
+        "\t\t\t\tNullCheck(L_71);\n"
+        "\t\t\t\tCamera_Render_m6089001EB6710DA9A21C87185D65922F13A24509(L_71, NULL);\n"
+        "\t\t\t\tgoto IL_01b7;"
+    )
+    if prev_render_call in content:
+        content = content.replace(prev_render_call, new_render_call, 1)
+    elif "OriPort_UpdateTurbulenceGlobals();" not in content.split(render_frame_decl, 1)[1]:
         if old_render_call not in content:
             raise RuntimeError("Could not find Camera_Render block in OriPortManualPresenter_RenderFrame")
         content = content.replace(old_render_call, new_render_call, 1)
-    else:
-        content = content.replace("if ((s_sanitizeCounter++ % 60) == 0)", "if ((s_sanitizeCounter++ % 15) == 0)")
 
     # 2. Wrap OriPortManualPresenter_RenderFrame call inside U3CStartU3Ed__13_MoveNext in a try/catch
     #    so that if any single frame ever throws a managed exception during rendering, the
@@ -1071,9 +1166,406 @@ IL_010d:
             raise RuntimeError("Could not find PlayerInputRebinding block in XboxControllerInput_GetButton")
         content = content.replace(old_btn_switch, new_btn_switch, 1)
 
+    # 3. Fix Sound.SoundListenerPosition so cutscene camera positions are used for 3D audio attenuation
+    old_listener = (
+        "IL_001a:\n"
+        "\t{\n"
+        "\t\tGameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* L_4 = ((Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_StaticFields*)il2cpp_codegen_static_fields_for(Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var))->___Current;\n"
+        "\t\tNullCheck(L_4);\n"
+        "\t\tCameraTarget_t078491F9A4589091B931D7C3651E01DA95C55FEC* L_5 = L_4->___CameraTarget;\n"
+        "\t\tNullCheck(L_5);\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_6 = L_5->___TargetPosition;\n"
+        "\t\treturn L_6;\n"
+        "\t}\n\n"
+        "IL_002a:\n"
+        "\t{\n"
+        "\t\tRuntimeObject* L_7 = ((Characters_tF59E7350484B625A1E1F9237B1CD79599AA4310B_StaticFields*)il2cpp_codegen_static_fields_for(Characters_tF59E7350484B625A1E1F9237B1CD79599AA4310B_il2cpp_TypeInfo_var))->___Current;\n"
+        "\t\tNullCheck(L_7);\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_8;\n"
+        "\t\tL_8 = InterfaceFuncInvoker0< Vector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 >::Invoke(0, ICharacter_tFA100B2676DEB2AD3DD3495D74ECB1C320D3FC3F_il2cpp_TypeInfo_var, L_7);\n"
+        "\t\treturn L_8;\n"
+        "\t}"
+    )
+    new_listener = (
+        "IL_001a:\n"
+        "\t{\n"
+        "\t\tGameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* L_4 = ((Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_StaticFields*)il2cpp_codegen_static_fields_for(Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var))->___Current;\n"
+        "\t\tif (L_4 != NULL) { return L_4->___CameraPositionForSampling; }\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 zeroPos = { 0.0f, 0.0f, 0.0f };\n"
+        "\t\treturn zeroPos;\n"
+        "\t}\n\n"
+        "IL_002a:\n"
+        "\t{\n"
+        "\t\tRuntimeObject* L_7 = ((Characters_tF59E7350484B625A1E1F9237B1CD79599AA4310B_StaticFields*)il2cpp_codegen_static_fields_for(Characters_tF59E7350484B625A1E1F9237B1CD79599AA4310B_il2cpp_TypeInfo_var))->___Current;\n"
+        "\t\tNullCheck(L_7);\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_8;\n"
+        "\t\tL_8 = InterfaceFuncInvoker0< Vector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 >::Invoke(0, ICharacter_tFA100B2676DEB2AD3DD3495D74ECB1C320D3FC3F_il2cpp_TypeInfo_var, L_7);\n"
+        "\t\tGameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* cam = ((Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_StaticFields*)il2cpp_codegen_static_fields_for(Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var))->___Current;\n"
+        "\t\tif (cam != NULL)\n"
+        "\t\t{\n"
+        "\t\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 camPos = cam->___CameraPositionForSampling;\n"
+        "\t\t\tfloat dx = camPos.___x - L_8.___x;\n"
+        "\t\t\tfloat dy = camPos.___y - L_8.___y;\n"
+        "\t\t\tif ((dx * dx + dy * dy) > 400.0f) { return camPos; }\n"
+        "\t\t}\n"
+        "\t\treturn L_8;\n"
+        "\t}"
+    )
+    if "L_4->___CameraPositionForSampling" not in content:
+        if old_listener not in content:
+            raise RuntimeError("Could not find Sound_get_SoundListenerPosition block in Assembly-CSharp__29.cpp")
+        content = content.replace(old_listener, new_listener, 1)
+
+    # 4. Fix Sound.Play distance culling so 2D sounds at (0,0,0) and cutscene sounds near the moving camera are never culled
+    old_cull = (
+        "IL_0048:\n"
+        "\t{\n"
+        "\t\tSoundSize_t03D7804D5DBAE76CE9CC63D30CBE747FDD3846C3* L_12 = ___3_soundSize;\n"
+        "\t\tNullCheck(L_12);\n"
+        "\t\tfloat L_13 = L_12->___Radius;\n"
+        "\t\tSoundSize_t03D7804D5DBAE76CE9CC63D30CBE747FDD3846C3* L_14 = ___3_soundSize;\n"
+        "\t\tNullCheck(L_14);\n"
+        "\t\tfloat L_15 = L_14->___FalloffMargin;\n"
+        "\t\tV_0 = ((float)il2cpp_codegen_add(L_13, L_15));\n"
+        "\t\tGameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* L_16 = ((Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_StaticFields*)il2cpp_codegen_static_fields_for(Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var))->___Current;\n"
+        "\t\tNullCheck(L_16);\n"
+        "\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* L_17;\n"
+        "\t\tL_17 = GameplayCamera_get_Target_mB590E93626C28F1E1C40BA4A66D970851B571A03(L_16, NULL);\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\t\tbool L_18;\n"
+        "\t\tL_18 = Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A(L_17, NULL);\n"
+        "\t\tif (!L_18)\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_008b;\n"
+        "\t\t}\n"
+        "\t}\n"
+        "\t{\n"
+        "\t\tfloat L_19 = V_0;\n"
+        "\t\tfloat L_20 = V_0;\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_21 = ___1_position;\n"
+        "\t\tGameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* L_22 = ((Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_StaticFields*)il2cpp_codegen_static_fields_for(Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var))->___Current;\n"
+        "\t\tNullCheck(L_22);\n"
+        "\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* L_23;\n"
+        "\t\tL_23 = GameplayCamera_get_Target_mB590E93626C28F1E1C40BA4A66D970851B571A03(L_22, NULL);\n"
+        "\t\tNullCheck(L_23);\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_24;\n"
+        "\t\tL_24 = Transform_get_position_m69CD5FA214FDAE7BB701552943674846C220FDE1(L_23, NULL);\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_25;\n"
+        "\t\tL_25 = Vector3_op_Subtraction_mE42023FF80067CB44A1D4A27EB7CF2B24CABB828_inline(L_21, L_24, NULL);\n"
+        "\t\tV_1 = L_25;\n"
+        "\t\tfloat L_26;\n"
+        "\t\tL_26 = Vector3_get_sqrMagnitude_m43C27DEC47C4811FB30AB474FF2131A963B66FC8_inline((&V_1), NULL);\n"
+        "\t\tif ((!(((float)((float)il2cpp_codegen_multiply(L_19, L_20))) < ((float)L_26))))\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_008b;\n"
+        "\t\t}\n"
+        "\t}"
+    )
+    new_cull = (
+        "IL_0048:\n"
+        "\t{\n"
+        "\t\tif (___1_position.___x == 0.0f && ___1_position.___y == 0.0f && ___1_position.___z == 0.0f)\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_008b;\n"
+        "\t\t}\n"
+        "\t\tSoundSize_t03D7804D5DBAE76CE9CC63D30CBE747FDD3846C3* L_12 = ___3_soundSize;\n"
+        "\t\tNullCheck(L_12);\n"
+        "\t\tfloat L_13 = L_12->___Radius;\n"
+        "\t\tSoundSize_t03D7804D5DBAE76CE9CC63D30CBE747FDD3846C3* L_14 = ___3_soundSize;\n"
+        "\t\tNullCheck(L_14);\n"
+        "\t\tfloat L_15 = L_14->___FalloffMargin;\n"
+        "\t\tV_0 = ((float)il2cpp_codegen_add(L_13, L_15));\n"
+        "\t\tfloat L_19 = V_0;\n"
+        "\t\tfloat L_20 = V_0;\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_21 = ___1_position;\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_24 = Sound_get_SoundListenerPosition_mFFE8C6DE8589D69CD2629EF49D7F0E3DDBDEBB41(NULL);\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_25;\n"
+        "\t\tL_25 = Vector3_op_Subtraction_mE42023FF80067CB44A1D4A27EB7CF2B24CABB828_inline(L_21, L_24, NULL);\n"
+        "\t\tV_1 = L_25;\n"
+        "\t\tfloat L_26;\n"
+        "\t\tL_26 = Vector3_get_sqrMagnitude_m43C27DEC47C4811FB30AB474FF2131A963B66FC8_inline((&V_1), NULL);\n"
+        "\t\tif ((!(((float)((float)il2cpp_codegen_multiply(L_19, L_20))) < ((float)L_26))))\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_008b;\n"
+        "\t\t}\n"
+        "\t}"
+    )
+    if "___1_position.___x == 0.0f && ___1_position.___y == 0.0f" not in content:
+        if old_cull not in content:
+            raise RuntimeError("Could not find IL_0048 block in Sound_Play (Assembly-CSharp__29.cpp)")
+        content = content.replace(old_cull, new_cull, 1)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__29.cpp (iOS MFi / GameSir controller support)")
+    print("[OK] Patched Assembly-CSharp__29.cpp (iOS MFi / GameSir controller support + Cutscene 3D/2D audio listener & culling fixes)")
+
+
+def patch_assembly_csharp_23(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__23.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 1. Start pooled SoundPlayers at volume 0.0f instead of 1.0f in OnPoolSpawned
+    old_pool_vol = (
+        "\t\tAudioSource_t871AC2272F896738252F04EE949AEF5B241D3299* L_4 = __this->___m_audioSource;\n"
+        "\t\tNullCheck(L_4);\n"
+        "\t\tAudioSource_set_volume_mD902BBDBBDE0E3C148609BF3C05096148E90F2C0(L_4, (1.0f), NULL);"
+    )
+    new_pool_vol = (
+        "\t\tAudioSource_t871AC2272F896738252F04EE949AEF5B241D3299* L_4 = __this->___m_audioSource;\n"
+        "\t\tNullCheck(L_4);\n"
+        "\t\tAudioSource_set_volume_mD902BBDBBDE0E3C148609BF3C05096148E90F2C0(L_4, (0.0f), NULL);"
+    )
+    if old_pool_vol in content:
+        content = content.replace(old_pool_vol, new_pool_vol, 1)
+
+    # 2. Prevent SoundPlayer.Update from seeking (AudioSource.set_time) mid-playback on compressed Vorbis streams
+    #    after TimeIsScaled transitions, which causes loud synthetic clicking/crackling on iOS!
+    old_timescale_seek = (
+        "\t{\n"
+        "\t\t__this->___m_timeScaleChanged = (bool)0;\n"
+        "\t\tAudioSource_t871AC2272F896738252F04EE949AEF5B241D3299* L_20 = __this->___m_audioSource;"
+    )
+    new_timescale_seek = (
+        "\t{\n"
+        "\t\t__this->___m_timeScaleChanged = (bool)0;\n"
+        "\t\tgoto IL_0130;\n"
+        "\t\tAudioSource_t871AC2272F896738252F04EE949AEF5B241D3299* L_20 = __this->___m_audioSource;"
+    )
+    if "__this->___m_timeScaleChanged = (bool)0;\n\t\tgoto IL_0130;" not in content:
+        if old_timescale_seek not in content:
+            raise RuntimeError("Could not find m_timeScaleChanged block in SoundPlayer_Update (Assembly-CSharp__23.cpp)")
+        content = content.replace(old_timescale_seek, new_timescale_seek, 1)
+
+    # 3. In SoundPlayer.UpdateVolumeProperties, if SoundSize is null or the sound is spawned at (0,0,0) (2D / cutscene sound),
+    #    jump to IL_0111 so SoundType volume multipliers and AudioSource.volume = V_1 are still applied!
+    old_vol_props = (
+        "\t\tSoundSize_t03D7804D5DBAE76CE9CC63D30CBE747FDD3846C3* L_7 = __this->___SoundSize;\n"
+        "\t\tif (L_7)\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_003a;\n"
+        "\t\t}\n"
+        "\t}\n"
+        "\t{\n"
+        "\t\treturn;\n"
+        "\t}"
+    )
+    new_vol_props = (
+        "\t\tif (L_2.___x == 0.0f && L_2.___y == 0.0f && L_2.___z == 0.0f)\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_0111;\n"
+        "\t\t}\n"
+        "\t\tSoundSize_t03D7804D5DBAE76CE9CC63D30CBE747FDD3846C3* L_7 = __this->___SoundSize;\n"
+        "\t\tif (L_7)\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_003a;\n"
+        "\t\t}\n"
+        "\t}\n"
+        "\t{\n"
+        "\t\tgoto IL_0111;\n"
+        "\t}"
+    )
+    if "if (L_2.___x == 0.0f && L_2.___y == 0.0f && L_2.___z == 0.0f)" not in content:
+        if old_vol_props not in content:
+            raise RuntimeError("Could not find SoundSize check in SoundPlayer_UpdateVolumeProperties (Assembly-CSharp__23.cpp)")
+        content = content.replace(old_vol_props, new_vol_props, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__23.cpp (SoundPlayer volume init + Vorbis seek crackle fix + 2D/cutscene sound attenuation fix)")
+
+
+def patch_assembly_csharp_25(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__25.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 1. In TransparencyAnimator+RendererData..ctor, when a material's initial color alpha is <= 0.001f (e.g. at t=0 of a
+    #    fade-in animation or shared material modified by another animator), default OriginalAlpha to 0.5f (1.0x opacity in
+    #    Ori's 2x multiplier UberShaders) instead of 0.0f! This fixes all invisible Prologue cutscene illustrations (Image4-6),
+    #    foreground/background fade layers, and OptionsScreen visibility!
+    old_orig_alpha = (
+        "IL_007d:\n"
+        "\t{\n"
+        "\t\tfloat L_22 = V_0;\n"
+        "\t\t__this->___OriginalAlpha = L_22;\n"
+        "\t\treturn;\n"
+        "\t}"
+    )
+    new_orig_alpha = (
+        "IL_007d:\n"
+        "\t{\n"
+        "\t\t__this->___OriginalAlpha = (0.5f);\n"
+        "\t\treturn;\n"
+        "\t}"
+    )
+    if "__this->___OriginalAlpha = (0.5f);" not in content:
+        if old_orig_alpha not in content:
+            raise RuntimeError("Could not find IL_007d in RendererData__ctor (Assembly-CSharp__25.cpp)")
+        content = content.replace(old_orig_alpha, new_orig_alpha, 1)
+
+    # 2. Export OriPort_UpdateTurbulenceGlobals() so OriPortManualPresenter_RenderFrame updates wind/turbulence shader globals
+    #    every frame before manual Camera.Render() (since TurbulenceManager.OnRenderObject only fires for its own GameObject's camera).
+    turb_helper = (
+        "IL2CPP_EXTERN_C void OriPort_UpdateTurbulenceGlobals()\n"
+        "{\n"
+        "\tstatic bool s_init = false;\n"
+        "\tif (!s_init)\n"
+        "\t{\n"
+        "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&TurbulenceManager_t5F2ACC34B8AB3E82CD2028AC0A8737FDD118F450_il2cpp_TypeInfo_var);\n"
+        "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\t\ts_init = true;\n"
+        "\t}\n"
+        "\tTurbulenceManager_t5F2ACC34B8AB3E82CD2028AC0A8737FDD118F450* mgr = ((TurbulenceManager_t5F2ACC34B8AB3E82CD2028AC0A8737FDD118F450_StaticFields*)il2cpp_codegen_static_fields_for(TurbulenceManager_t5F2ACC34B8AB3E82CD2028AC0A8737FDD118F450_il2cpp_TypeInfo_var))->___Instance;\n"
+        "\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\tif (mgr != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A(mgr, NULL))\n"
+        "\t{\n"
+        "\t\tTurbulenceManager_UpdateShaderGlobalsForManualRender_m3C9BB9E2270E651E1489042F1116930816C6CA81(mgr, NULL);\n"
+        "\t}\n"
+        "}\n"
+    )
+    turb_target = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TurbulenceManager_OnRenderObject_mA6E707E9EEFAF81D67E7783C48370658C94B5A7D"
+    if "void OriPort_UpdateTurbulenceGlobals()" not in content:
+        if turb_target not in content:
+            raise RuntimeError("Could not find TurbulenceManager_OnRenderObject in Assembly-CSharp__25.cpp")
+        content = content.replace(turb_target, turb_helper + turb_target, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__25.cpp (TransparencyAnimator+RendererData OriginalAlpha fix + TurbulenceManager manual render globals)")
+
+
+def patch_assembly_csharp_26(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__26.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 1. Fix UberAlphaBuffer.SetCurrentAlphaGrab to use Shader.SetGlobalTexture("_AlphaGrabTex", m_alphaBuffer)
+    #    instead of the stripped/deprecated RenderTexture.SetGlobalShaderProperty.
+    extern_set_global_tex = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Shader_SetGlobalTexture_mAB95343764A1E9214DF3D80E029E03F6AD0BE230 (String_t* ___0_name, Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* ___1_value, const RuntimeMethod* method);\n"
+    alpha_grab_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberAlphaBuffer_SetCurrentAlphaGrab_m69077B2FA1A7F07E8B64E8E4FD884979B6F50E6C"
+    if extern_set_global_tex not in content:
+        content = content.replace(alpha_grab_decl, extern_set_global_tex + alpha_grab_decl, 1)
+
+    old_set_prop = "RenderTexture_SetGlobalShaderProperty_m7BBA88435EDF79EBB5275B3CF84EBEC897EEAAAA(L_2, _stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, NULL);"
+    new_set_prop = "Shader_SetGlobalTexture_mAB95343764A1E9214DF3D80E029E03F6AD0BE230(_stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, L_2, NULL);"
+    if old_set_prop in content:
+        content = content.replace(old_set_prop, new_set_prop, 1)
+
+    # 2. Route UberPostProcess.OnRenderImage to DoPost instead of DoCompatibilityPost on iOS so full color grading,
+    #    nighttime curves, bloom, vignette, and UberAlphaBuffer are active!
+    on_render_image_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberPostProcess_OnRenderImage_mD51A4F9A6598D5179C10BE516BE243B1EA51BA53"
+    on_render_image_body = (
+        "\t{\n"
+        "\t\tUberPostProcess_DoPost_m6A2D0C46B4E566F7496AC41A7502DA9E36305DD1(__this, ___0_source, ___1_destination, NULL);\n"
+        "\t\treturn;\n"
+        "\t}"
+    )
+    content = replace_func_body(content, on_render_image_decl, on_render_image_body)
+
+    # 3. In UberPostProcess.DoPost:
+    #    - Initialize RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27_il2cpp_TypeInfo_var metadata
+    #    - Ensure __this->___PostTarget is allocated/resized to match ___0_source width/height (since OriPortManualPresenter
+    #      passes m_frame with dynamic resolution scaling)
+    #    - Null-check UberUIPostProcess.Instance before rendering its camera so scenes without UberUIPostProcess still execute
+    #      Pass 3 (final tone-mapping/contrast/brightness blit from PostTarget to destination)!
+    old_dopost_meta = "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&UberPostCacheIds_t9EBFAA44CA219ABF30A1382159A47EDE00B1FC26_il2cpp_TypeInfo_var);"
+    new_dopost_meta = (
+        "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27_il2cpp_TypeInfo_var);\n"
+        "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&UberPostCacheIds_t9EBFAA44CA219ABF30A1382159A47EDE00B1FC26_il2cpp_TypeInfo_var);"
+    )
+    if new_dopost_meta not in content:
+        if old_dopost_meta not in content:
+            raise RuntimeError("Could not find metadata init in UberPostProcess_DoPost (Assembly-CSharp__26.cpp)")
+        content = content.replace(old_dopost_meta, new_dopost_meta, 1)
+
+    old_il_003c = (
+        "IL_003c:\n"
+        "\t{\n"
+        "\t\tV_0 = (RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27*)NULL;"
+    )
+    new_il_003c = (
+        "IL_003c:\n"
+        "\t{\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* pt = __this->___PostTarget;\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\t\tint32_t srcW = VirtualFuncInvoker0< int32_t >::Invoke(4, ___0_source);\n"
+        "\t\tint32_t srcH = VirtualFuncInvoker0< int32_t >::Invoke(6, ___0_source);\n"
+        "\t\tif (!Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A(pt, NULL) ||\n"
+        "\t\t    VirtualFuncInvoker0< int32_t >::Invoke(4, pt) != srcW ||\n"
+        "\t\t    VirtualFuncInvoker0< int32_t >::Invoke(6, pt) != srcH)\n"
+        "\t\t{\n"
+        "\t\t\tUberPostProcess_DestroyTargetTex_m860248A615B4855B59E8255CF1A1AEC1DF20E8D3(__this, pt, NULL);\n"
+        "\t\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* newPt = (RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27*)il2cpp_codegen_object_new(RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27_il2cpp_TypeInfo_var);\n"
+        "\t\t\tRenderTexture__ctor_m53215A8EDDE262932758186108347685F6A512C4(newPt, srcW, srcH, ((int32_t)24), 0, NULL);\n"
+        "\t\t\t__this->___PostTarget = newPt;\n"
+        "\t\t\tIl2CppCodeGenWriteBarrier((void**)(&__this->___PostTarget), (void*)newPt);\n"
+        "\t\t}\n"
+        "\t\tV_0 = (RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27*)NULL;"
+    )
+    if "RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* pt = __this->___PostTarget;" not in content:
+        if old_il_003c not in content:
+            raise RuntimeError("Could not find IL_003c in UberPostProcess_DoPost (Assembly-CSharp__26.cpp)")
+        content = content.replace(old_il_003c, new_il_003c, 1)
+
+    old_ui_post = (
+        "\t\tUberUIPostProcess_t57A61E7D95BF15C08A41B787A92895687CC9BE4C* L_75;\n"
+        "\t\tL_75 = UberUIPostProcess_get_Instance_mE806F25F0167F575C457C0B0786E52898731FAAC_inline(NULL);\n"
+        "\t\tNullCheck(L_75);\n"
+        "\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_76 = L_75->___Camera;\n"
+        "\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_77 = L_76;\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_78 = __this->___PostTarget;\n"
+        "\t\tNullCheck(L_77);\n"
+        "\t\tCamera_set_targetTexture_mE6C740F21A72DA47FB5B1D31D208710738A836C4(L_77, L_78, NULL);\n"
+        "\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_79 = L_77;\n"
+        "\t\tNullCheck(L_79);\n"
+        "\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D L_80;\n"
+        "\t\tL_80 = Camera_get_rect_m848C23B32814D1351E43F0A0110DB8ECA19C6772(L_79, NULL);\n"
+        "\t\tV_4 = L_80;\n"
+        "\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_81 = L_79;\n"
+        "\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D L_82;\n"
+        "\t\tmemset((&L_82), 0, sizeof(L_82));\n"
+        "\t\tRect__ctor_m18C3033D135097BEE424AAA68D91C706D2647F23_inline((&L_82), (0.0f), (0.0f), (1.0f), (1.0f), NULL);\n"
+        "\t\tNullCheck(L_81);\n"
+        "\t\tCamera_set_rect_mA81158BC169AF8674DE240AE9460FC5A0EADBB19(L_81, L_82, NULL);\n"
+        "\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_83 = L_81;\n"
+        "\t\tNullCheck(L_83);\n"
+        "\t\tCamera_Render_m6089001EB6710DA9A21C87185D65922F13A24509(L_83, NULL);\n"
+        "\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_84 = L_83;\n"
+        "\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D L_85 = V_4;\n"
+        "\t\tNullCheck(L_84);\n"
+        "\t\tCamera_set_rect_mA81158BC169AF8674DE240AE9460FC5A0EADBB19(L_84, L_85, NULL);\n"
+        "\t\tNullCheck(L_84);\n"
+        "\t\tCamera_set_targetTexture_mE6C740F21A72DA47FB5B1D31D208710738A836C4(L_84, (RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27*)NULL, NULL);"
+    )
+    new_ui_post = (
+        "\t\tUberUIPostProcess_t57A61E7D95BF15C08A41B787A92895687CC9BE4C* L_75;\n"
+        "\t\tL_75 = UberUIPostProcess_get_Instance_mE806F25F0167F575C457C0B0786E52898731FAAC_inline(NULL);\n"
+        "\t\tif (L_75 != NULL && L_75->___Camera != NULL)\n"
+        "\t\t{\n"
+        "\t\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_77 = L_75->___Camera;\n"
+        "\t\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_78 = __this->___PostTarget;\n"
+        "\t\t\tCamera_set_targetTexture_mE6C740F21A72DA47FB5B1D31D208710738A836C4(L_77, L_78, NULL);\n"
+        "\t\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D L_80 = Camera_get_rect_m848C23B32814D1351E43F0A0110DB8ECA19C6772(L_77, NULL);\n"
+        "\t\t\tV_4 = L_80;\n"
+        "\t\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D L_82;\n"
+        "\t\t\tmemset((&L_82), 0, sizeof(L_82));\n"
+        "\t\t\tRect__ctor_m18C3033D135097BEE424AAA68D91C706D2647F23_inline((&L_82), (0.0f), (0.0f), (1.0f), (1.0f), NULL);\n"
+        "\t\t\tCamera_set_rect_mA81158BC169AF8674DE240AE9460FC5A0EADBB19(L_77, L_82, NULL);\n"
+        "\t\t\tCamera_Render_m6089001EB6710DA9A21C87185D65922F13A24509(L_77, NULL);\n"
+        "\t\t\tCamera_set_rect_mA81158BC169AF8674DE240AE9460FC5A0EADBB19(L_77, V_4, NULL);\n"
+        "\t\t\tCamera_set_targetTexture_mE6C740F21A72DA47FB5B1D31D208710738A836C4(L_77, (RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27*)NULL, NULL);\n"
+        "\t\t}"
+    )
+    if "if (L_75 != NULL && L_75->___Camera != NULL)" not in content:
+        if old_ui_post not in content:
+            raise RuntimeError("Could not find UberUIPostProcess block in UberPostProcess_DoPost (Assembly-CSharp__26.cpp)")
+        content = content.replace(old_ui_post, new_ui_post, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__26.cpp (UberPostProcess.DoPost enabled on iOS + UberAlphaBuffer Shader.SetGlobalTexture fix)")
 
 
 def main() -> None:
@@ -1100,6 +1592,9 @@ def main() -> None:
     patch_assembly_csharp_13(cpp_dir)
     patch_assembly_csharp_17(cpp_dir)
     patch_assembly_csharp_21(cpp_dir)
+    patch_assembly_csharp_23(cpp_dir)
+    patch_assembly_csharp_25(cpp_dir)
+    patch_assembly_csharp_26(cpp_dir)
     patch_assembly_csharp_27(cpp_dir)
     patch_assembly_csharp_29(cpp_dir)
     print("All iOS IL2CPP runtime patches applied successfully!")
