@@ -372,10 +372,17 @@ def patch_assembly_csharp_3(cpp_dir: str) -> None:
     # 2. Add helper OriPort_SnapCameraToCurrentCharacter() so SeinPlaceholder can snap the gameplay camera
     #    to Ori when spawning in normal gameplay (e.g. when skipping prologue), WITHOUT overriding an
     #    active cutscene camera puppet (when CinematicPuppet != NULL && Tween > 0.001f).
-    snap_helper = """IL2CPP_EXTERN_C RuntimeClass* Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var;
+    snap_helper = """#include <stdio.h>
+IL2CPP_EXTERN_C RuntimeClass* Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var;
+IL2CPP_EXTERN_C RuntimeClass* Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void CameraPuppetController_Reset_m4707731712033B6CC8BE8954FF27AFACF81A5D8C (CameraPuppetController_tE58C8D776D2A6D6F92B40603A306EB81D2509F10* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_GoToChaseMode_mFFC2F96AFB013160811FCF9DBACC7EB92561EB40 (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void GameplayCamera_MoveCameraToTargetInstantly_m74A1E7974672F8B1DEFE7756070B1A7B3072F2B6 (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, bool ___0_updateTargetPosition, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Transform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* GameplayCamera_get_Target_mB590E93626C28F1E1C40BA4A66D970851B571A03 (GameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR String_t* Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392 (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C* ___0_exists, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Vector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 Transform_get_position_m69CD5FA214FDAE7BB701552943674846C220FDE1 (Transform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C void OriPort_StrToUtf8(String_t* s, char* out, int maxLen);
 
 IL2CPP_EXTERN_C void OriPort_SnapCameraToCurrentCharacter()
 {
@@ -409,6 +416,69 @@ IL2CPP_EXTERN_C void OriPort_SnapCameraToCurrentCharacter()
 \t}
 \tcatch (Il2CppExceptionWrapper&)
 \t{
+\t}
+}
+
+IL2CPP_EXTERN_C void OriPort_DumpCameraState(void* fpVoid)
+{
+\tFILE* fp = (FILE*)fpVoid;
+\tif (fp == NULL) return;
+\tstatic bool s_init = false;
+\tif (!s_init)
+\t{
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\ts_init = true;
+\t}
+\tfprintf(fp, "=== CAMERA STATE (UI.Cameras.Current) ===\\n");
+\ttry
+\t{
+\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\tGameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* cam = ((Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_StaticFields*)il2cpp_codegen_static_fields_for(Cameras_t7935DA243CF368EB505A27E50005C968D54D5A90_il2cpp_TypeInfo_var))->___Current;
+\t\tif (cam == NULL || !Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)cam, NULL))
+\t\t{
+\t\t\tfprintf(fp, "GameplayCamera: NULL\\n\\n");
+\t\t\treturn;
+\t\t}
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 camPos = cam->___Position;
+\t\tfprintf(fp, "GameplayCamera.Position: (%.3f, %.3f, %.3f)\\n", camPos.___x, camPos.___y, camPos.___z);
+\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* target = GameplayCamera_get_Target_mB590E93626C28F1E1C40BA4A66D970851B571A03(cam, NULL);
+\t\tif (target != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)target, NULL))
+\t\t{
+\t\t\tchar tName[128];
+\t\t\tOriPort_StrToUtf8(Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)target, NULL), tName, sizeof(tName));
+\t\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 tPos = Transform_get_position_m69CD5FA214FDAE7BB701552943674846C220FDE1(target, NULL);
+\t\t\tfprintf(fp, "Target: '%s' at (%.3f, %.3f, %.3f)\\n", tName, tPos.___x, tPos.___y, tPos.___z);
+\t\t}
+\t\telse
+\t\t{
+\t\t\tfprintf(fp, "Target: NULL\\n");
+\t\t}
+\t\tCameraController_tDC4FF0FA10418272A26E5E7539156F4F4A98E8C5* ctrl = cam->___Controller;
+\t\tif (ctrl != NULL && ctrl->___PuppetController != NULL)
+\t\t{
+\t\t\tCameraPuppetController_tE58C8D776D2A6D6F92B40603A306EB81D2509F10* pc = ctrl->___PuppetController;
+\t\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* pup = pc->___CinematicPuppet;
+\t\t\tif (pup != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)pup, NULL))
+\t\t\t{
+\t\t\t\tchar pName[128];
+\t\t\t\tOriPort_StrToUtf8(Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)pup, NULL), pName, sizeof(pName));
+\t\t\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 pPos = Transform_get_position_m69CD5FA214FDAE7BB701552943674846C220FDE1(pup, NULL);
+\t\t\t\tfprintf(fp, "PuppetController: Tween=%.3f CinematicPuppet='%s' at (%.3f, %.3f, %.3f)\\n\\n", pc->___Tween, pName, pPos.___x, pPos.___y, pPos.___z);
+\t\t\t}
+\t\t\telse
+\t\t\t{
+\t\t\t\tfprintf(fp, "PuppetController: Tween=%.3f CinematicPuppet=NULL\\n\\n", pc->___Tween);
+\t\t\t}
+\t\t}
+\t\telse
+\t\t{
+\t\t\tfprintf(fp, "PuppetController: NULL\\n\\n");
+\t\t}
+\t}
+\tcatch (Il2CppExceptionWrapper&)
+\t{
+\t\tfprintf(fp, "Exception while dumping camera state\\n\\n");
 \t}
 }
 """
@@ -589,16 +659,25 @@ IL_0019:
 
     # 4. Prevent LegacyMaterialTransparencyAnimator and LegacyTransparancyAnimator from caching 0.0f
     #    as m_originalValue / m_originalAlphas when a material starts at t=0 of a fade-in curve.
+    dbg_cfg_decl_11 = (
+        "struct OriPortDebugConfig { int32_t show_debug_btn; int32_t post_mode; int32_t motion_blur; int32_t bloom_blur; int32_t distortions; int32_t alpha_grab_mode; int32_t sanitizer_mode; float trans_alpha_default; int32_t turbulence_manual; int32_t fixed_hz; float time_scale; int32_t dump_now; int32_t panel_open; int32_t render_frame_exceptions; int32_t do_post_exceptions; int32_t dump_count; };\n"
+        "IL2CPP_EXTERN_C OriPortDebugConfig g_OriDebug;\n"
+    )
+    if "IL2CPP_EXTERN_C OriPortDebugConfig g_OriDebug;" not in content:
+        content = content.replace(inst_decl, dbg_cfg_decl_11 + inst_decl, 1)
+
+    content = content.replace("if (L_7 <= 0.001f) { L_7 = 0.5f; }", "if (L_7 <= 0.001f) { L_7 = g_OriDebug.trans_alpha_default; }")
     old_legacy_mat_alpha = "\t\tfloat L_7 = L_6.___a;\n\t\t__this->___m_originalValue = L_7;"
-    new_legacy_mat_alpha = "\t\tfloat L_7 = L_6.___a;\n\t\tif (L_7 <= 0.001f) { L_7 = 0.5f; }\n\t\t__this->___m_originalValue = L_7;"
-    if "if (L_7 <= 0.001f) { L_7 = 0.5f; }" not in content:
+    new_legacy_mat_alpha = "\t\tfloat L_7 = L_6.___a;\n\t\tif (L_7 <= 0.001f) { L_7 = g_OriDebug.trans_alpha_default; }\n\t\t__this->___m_originalValue = L_7;"
+    if "if (L_7 <= 0.001f) { L_7 = g_OriDebug.trans_alpha_default; }" not in content:
         if old_legacy_mat_alpha not in content:
             raise RuntimeError("Could not find L_7 assignment in LegacyMaterialTransparencyAnimator_Start")
         content = content.replace(old_legacy_mat_alpha, new_legacy_mat_alpha, 1)
 
+    content = content.replace("if (L_45 <= 0.001f) { L_45 = 0.5f; }", "if (L_45 <= 0.001f) { L_45 = g_OriDebug.trans_alpha_default; }")
     old_legacy_trans_alpha = "\t\tfloat L_45 = ((L_43)->GetAddressAt(static_cast<il2cpp_array_size_t>(L_44)))->___a;\n\t\tNullCheck(L_41);\n\t\t(L_41)->SetAt(static_cast<il2cpp_array_size_t>(L_42), (float)L_45);"
-    new_legacy_trans_alpha = "\t\tfloat L_45 = ((L_43)->GetAddressAt(static_cast<il2cpp_array_size_t>(L_44)))->___a;\n\t\tif (L_45 <= 0.001f) { L_45 = 0.5f; }\n\t\tNullCheck(L_41);\n\t\t(L_41)->SetAt(static_cast<il2cpp_array_size_t>(L_42), (float)L_45);"
-    if "if (L_45 <= 0.001f) { L_45 = 0.5f; }" not in content:
+    new_legacy_trans_alpha = "\t\tfloat L_45 = ((L_43)->GetAddressAt(static_cast<il2cpp_array_size_t>(L_44)))->___a;\n\t\tif (L_45 <= 0.001f) { L_45 = g_OriDebug.trans_alpha_default; }\n\t\tNullCheck(L_41);\n\t\t(L_41)->SetAt(static_cast<il2cpp_array_size_t>(L_42), (float)L_45);"
+    if "if (L_45 <= 0.001f) { L_45 = g_OriDebug.trans_alpha_default; }" not in content:
         if old_legacy_trans_alpha not in content:
             raise RuntimeError("Could not find L_45 assignment in LegacyTransparancyAnimator_CacheShaderInformation")
         content = content.replace(old_legacy_trans_alpha, new_legacy_trans_alpha, 1)
@@ -644,17 +723,27 @@ def patch_assembly_csharp_13(cpp_dir: str) -> None:
     # 4. Clamps _DepthFlipScreen.x into [-100, 900] for Metal Reversed-Z.
     # 5. Disables Hidden/EarlyZWrite dummy opaque Lambert prepass renderers.
     extern_decls = """IL2CPP_EXTERN_C String_t* _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C;
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 IL2CPP_EXTERN_C String_t* _stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA;
 IL2CPP_EXTERN_C String_t* _stringLiteral82CBFBC9D96154286C59A7A832F44ACA59CCC81D;
 IL2CPP_EXTERN_C String_t* _stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093;
 IL2CPP_EXTERN_C String_t* _stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E;
 IL2CPP_EXTERN_C String_t* _stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD;
 IL2CPP_EXTERN_C String_t* _stringLiteralCE9C589CA1C6D1CB29B40C006FAA5870083004B1;
+IL2CPP_EXTERN_C String_t* _stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003;
+IL2CPP_EXTERN_C String_t* _stringLiteral47A3FAF17D89549FD0F0ECA7370B81F7C80DFCDE;
 IL2CPP_EXTERN_C const RuntimeType* Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_0_0_0_var;
 IL2CPP_EXTERN_C RuntimeClass* Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* Type_t_il2cpp_TypeInfo_var;
+IL2CPP_EXTERN_C RuntimeClass* Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4_il2cpp_TypeInfo_var;
+IL2CPP_EXTERN_C RuntimeClass* GUIStyle_t20BA2F9F3FE9D13AAA607EEEBE5547835A6F6580_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR MaterialU5BU5D_t2B1D11C42DB07A4400C0535F92DBB87A2E346D3D* Renderer_get_sharedMaterials_m0B61AFD8EDA35A70C796FFB2F28BB62380051ABF (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Renderer_get_enabled_mFDDF363859AEC88105A925FA7EA341C077B09B54 (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8 (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, bool ___0_value, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int32_t Renderer_get_sortingOrder_m4CE7ADEEC8E2F28CC1D10B1D4091A10F8F1583FA (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR GameObject_t76FEDD663AB33C991A9C9A23129337651094216F* Component_get_gameObject_m57AEFBB14DB39EC476F740BA000E170355DE691B (Component_t39FBE53E5EFCF4409111FB22C15FF73717632EC3* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Shader_tADC867D36B7876EE22427FAA2CE485105F4EE692* Material_get_shader_m8B0C11AE6F2AD7DE30AF52D3195EB716F7A71983 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Material_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, Shader_tADC867D36B7876EE22427FAA2CE485105F4EE692* ___0_value, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int32_t Material_get_renderQueue_mC427C54D2667620CBB845559DA4DA31BE166C757 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, const RuntimeMethod* method);
@@ -663,11 +752,197 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Material_HasProperty_mC09A83B44E368A217F
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* Material_GetTexture_mBA07A377A7DDD29CD53E6F687DE6D49A42C0C719 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Material_SetVector_m69444B8040D955821F241113446CC8713C9E12D1 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, Vector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 ___1_value, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Color_tD001788D726C3A7F1379BEED0260B9591F440C1F Material_GetColor_mAC702C70081A597DD2AA2F4627B1A1C65DDF6609 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, String_t* ___0_name, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool String_StartsWith_mF75DBA1EB709811E711B44E26FF919C88A8E65C0 (String_t* __this, String_t* ___0_value, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR float Time_get_deltaTime_mC3195000401F0FD167DD2F948FD2BC58330D0865 (const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR float Time_get_timeScale_m1F45A413D4EEA08B1E0988022512C137F6C1E616 (const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Time_set_fixedDeltaTime_m8D8417B234CFF76AF81890D5AF67D8C54EFD189F (float ___0_value, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Time_set_timeScale_mEF84EE4B2376A458387648079B426B267862D331 (float ___0_value, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Input_GetMouseButtonDown_m8DFC792D15FFF15D311614D5CC6C5D055E5A1DE3 (int32_t ___0_button, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2 (int32_t ___0_key, const RuntimeMethod* method);
 IL2CPP_EXTERN_C void OriPort_UpdateTurbulenceGlobals();
+IL2CPP_EXTERN_C void OriPort_DumpCameraState(void* fpVoid);
+IL2CPP_EXTERN_C void OriPort_DumpPostProcessState(void* fpVoid);
+
+struct OriPortDebugConfig {
+\tint32_t post_mode; int32_t bloom_blur; int32_t motion_blur; int32_t distortions;
+\tint32_t alpha_grab_mode; int32_t sanitize_mode; int32_t clamp_depth; float orig_alpha;
+\tint32_t turbulence; int32_t fixed_hz; float time_scale; int32_t dump_now;
+\tint32_t panel_open; int32_t exc_render_frame; int32_t exc_dopost; int32_t force_resanitize;
+};
+
+OriPortDebugConfig g_OriDebug = { 1, 1, 0, 1, 0, 1, 1, 0.5f, 1, 60, 1.0f, 0, 0, 0, 0, 0 };
+float g_OriDefaultTransAlpha = 0.5f;
+static int32_t s_showDebugBtn = 1;
+
+IL2CPP_EXTERN_C void OriPort_StrToUtf8(String_t* str, char* buf, int maxLen)
+{
+\tif (buf == NULL || maxLen <= 0) return;
+\tbuf[0] = '\\0';
+\tif (str == NULL) return;
+\tint32_t len = str->___m_stringLength;
+\tif (len <= 0) return;
+\tconst Il2CppChar* chars = &str->___m_firstChar;
+\tint outIdx = 0;
+\tfor (int32_t i = 0; i < len && outIdx < maxLen - 1; i++)
+\t{
+\t\tuint16_t c = (uint16_t)chars[i];
+\t\tif (c < 0x80) buf[outIdx++] = (char)c;
+\t\telse if (c < 0x800 && outIdx < maxLen - 2) { buf[outIdx++] = (char)(0xC0 | (c >> 6)); buf[outIdx++] = (char)(0x80 | (c & 0x3F)); }
+\t\telse if (outIdx < maxLen - 3) { buf[outIdx++] = (char)(0xE0 | (c >> 12)); buf[outIdx++] = (char)(0x80 | ((c >> 6) & 0x3F)); buf[outIdx++] = (char)(0x80 | (c & 0x3F)); }
+\t}
+\tbuf[outIdx] = '\\0';
+}
+
+static char s_oriConfigPath[1024] = {0};
+static char s_oriInspectorPath[1024] = {0};
+static bool s_oriPathsInit = false;
+
+static void OriPort_EnsurePaths()
+{
+\tif (s_oriPathsInit) return;
+\ttry
+\t{
+\t\tString_t* pPath = Application_get_persistentDataPath_mC58BD3E1A20732E0A536491DBCAE6505B1624399(NULL);
+\t\tif (pPath != NULL)
+\t\t{
+\t\t\tchar baseDir[896];
+\t\t\tOriPort_StrToUtf8(pPath, baseDir, sizeof(baseDir));
+\t\t\tif (baseDir[0] != '\\0')
+\t\t\t{
+\t\t\t\tsnprintf(s_oriConfigPath, sizeof(s_oriConfigPath), "%s/ori_debug.txt", baseDir);
+\t\t\t\tsnprintf(s_oriInspectorPath, sizeof(s_oriInspectorPath), "%s/ori_inspector_log.txt", baseDir);
+\t\t\t\ts_oriPathsInit = true;
+\t\t\t}
+\t\t}
+\t}
+\tcatch (Il2CppExceptionWrapper&) {}
+}
+
+static void OriPort_SaveConfig()
+{
+\tOriPort_EnsurePaths();
+\tif (!s_oriPathsInit) return;
+\tFILE* fp = fopen(s_oriConfigPath, "w");
+\tif (!fp) return;
+\tfprintf(fp, "# Ori iOS Live Debug Config (reloaded every 60 frames)\\n");
+\tfprintf(fp, "show_debug_btn=%d\\n", (int)s_showDebugBtn);
+\tfprintf(fp, "post_mode=%d\\n", (int)g_OriDebug.post_mode);
+\tfprintf(fp, "motion_blur=%d\\n", (int)g_OriDebug.motion_blur);
+\tfprintf(fp, "bloom_blur=%d\\n", (int)g_OriDebug.bloom_blur);
+\tfprintf(fp, "distortions=%d\\n", (int)g_OriDebug.distortions);
+\tfprintf(fp, "alpha_grab_mode=%d\\n", (int)g_OriDebug.alpha_grab_mode);
+\tfprintf(fp, "sanitizer_mode=%d\\n", (int)g_OriDebug.sanitize_mode);
+\tfprintf(fp, "trans_alpha_default=%.2f\\n", g_OriDefaultTransAlpha);
+\tfprintf(fp, "turbulence_manual=%d\\n", (int)g_OriDebug.turbulence);
+\tfprintf(fp, "fixed_hz=%d\\n", (int)g_OriDebug.fixed_hz);
+\tfprintf(fp, "time_scale=%.2f\\n", g_OriDebug.time_scale);
+\tfprintf(fp, "dump_now=%d\\n", (int)g_OriDebug.dump_now);
+\tfclose(fp);
+}
+
+static void OriPort_ApplyTimeSettings()
+{
+\ttry
+\t{
+\t\tif (g_OriDebug.fixed_hz >= 30 && g_OriDebug.fixed_hz <= 240)
+\t\t{
+\t\t\tfloat targetFixed = 1.0f / (float)g_OriDebug.fixed_hz;
+\t\t\tfloat curFixed = Time_get_fixedDeltaTime_m43136893D00AF5D5FE80AD05609558F6E2381381(NULL);
+\t\t\tif (curFixed < targetFixed - 0.0001f || curFixed > targetFixed + 0.0001f)
+\t\t\t\tTime_set_fixedDeltaTime_m8D8417B234CFF76AF81890D5AF67D8C54EFD189F(targetFixed, NULL);
+\t\t}
+\t\tif (g_OriDebug.time_scale >= 0.05f && g_OriDebug.time_scale <= 2.0f)
+\t\t{
+\t\t\tfloat curScale = Time_get_timeScale_m1F45A413D4EEA08B1E0988022512C137F6C1E616(NULL);
+\t\t\tif (curScale > 0.001f && (curScale < g_OriDebug.time_scale - 0.01f || curScale > g_OriDebug.time_scale + 0.01f))
+\t\t\t\tTime_set_timeScale_mEF84EE4B2376A458387648079B426B267862D331(g_OriDebug.time_scale, NULL);
+\t\t}
+\t}
+\tcatch (Il2CppExceptionWrapper&) {}
+}
+
+static void OriPort_LoadOrSyncConfig()
+{
+\tOriPort_EnsurePaths();
+\tif (!s_oriPathsInit) return;
+\tFILE* fp = fopen(s_oriConfigPath, "r");
+\tif (!fp) { OriPort_SaveConfig(); OriPort_ApplyTimeSettings(); return; }
+\tchar line[256];
+\tint32_t oldSan = g_OriDebug.sanitize_mode;
+\twhile (fgets(line, sizeof(line), fp))
+\t{
+\t\tif (line[0] == '#' || line[0] == '\\n' || line[0] == '\\r') continue;
+\t\tchar* eq = strchr(line, '=');
+\t\tif (!eq) continue;
+\t\t*eq = '\\0';
+\t\tconst char* key = line;
+\t\tconst char* val = eq + 1;
+\t\tif (strcmp(key, "show_debug_btn") == 0) s_showDebugBtn = atoi(val);
+\t\telse if (strcmp(key, "post_mode") == 0) g_OriDebug.post_mode = atoi(val);
+\t\telse if (strcmp(key, "motion_blur") == 0) g_OriDebug.motion_blur = atoi(val);
+\t\telse if (strcmp(key, "bloom_blur") == 0) g_OriDebug.bloom_blur = atoi(val);
+\t\telse if (strcmp(key, "distortions") == 0) g_OriDebug.distortions = atoi(val);
+\t\telse if (strcmp(key, "alpha_grab_mode") == 0) g_OriDebug.alpha_grab_mode = atoi(val);
+\t\telse if (strcmp(key, "sanitizer_mode") == 0) g_OriDebug.sanitize_mode = atoi(val);
+\t\telse if (strcmp(key, "trans_alpha_default") == 0) { g_OriDefaultTransAlpha = (float)atof(val); g_OriDebug.orig_alpha = g_OriDefaultTransAlpha; }
+\t\telse if (strcmp(key, "turbulence_manual") == 0) g_OriDebug.turbulence = atoi(val);
+\t\telse if (strcmp(key, "fixed_hz") == 0) g_OriDebug.fixed_hz = atoi(val);
+\t\telse if (strcmp(key, "time_scale") == 0) g_OriDebug.time_scale = (float)atof(val);
+\t\telse if (strcmp(key, "dump_now") == 0) g_OriDebug.dump_now = atoi(val);
+\t}
+\tfclose(fp);
+\tif (g_OriDebug.sanitize_mode != oldSan) g_OriDebug.force_resanitize = 1;
+\tOriPort_ApplyTimeSettings();
+}
+
+IL2CPP_EXTERN_C void OriPort_ApplyAlphaGrabOverride()
+{
+\tif (g_OriDebug.alpha_grab_mode != 2 && g_OriDebug.alpha_grab_mode != 3) return;
+\tstatic bool s_texMetaInit = false;
+\tif (!s_texMetaInit)
+\t{
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003);
+\t\ts_texMetaInit = true;
+\t}
+\ttry
+\t{
+\t\tstatic Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4* s_blackTex = NULL;
+\t\tstatic Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4* s_grayTex = NULL;
+\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\tif (g_OriDebug.alpha_grab_mode == 2)
+\t\t{
+\t\t\tif (s_blackTex == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(s_blackTex, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t{
+\t\t\t\ts_blackTex = (Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4*)il2cpp_codegen_object_new(Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4_il2cpp_TypeInfo_var);
+\t\t\t\tTexture2D__ctor_mECF60A9EC0638EC353C02C8E99B6B465D23BE917(s_blackTex, 1, 1, 4, (bool)0, NULL);
+\t\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F c = { 0.0f, 0.0f, 0.0f, 0.0f };
+\t\t\t\tTexture2D_SetPixel_m2CCFC5F729135D59DC4A697C2605A3FC5C8574DB(s_blackTex, 0, 0, c, NULL);
+\t\t\t\tTexture2D_Apply_m36EE27E6F1BF7FB8C70A1D749DC4EE249810AA3A(s_blackTex, (bool)0, (bool)0, NULL);
+\t\t\t}
+\t\t\tShader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16(_stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, (Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700*)s_blackTex, NULL);
+\t\t}
+\t\telse if (g_OriDebug.alpha_grab_mode == 3)
+\t\t{
+\t\t\tif (s_grayTex == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(s_grayTex, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t{
+\t\t\t\ts_grayTex = (Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4*)il2cpp_codegen_object_new(Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4_il2cpp_TypeInfo_var);
+\t\t\t\tTexture2D__ctor_mECF60A9EC0638EC353C02C8E99B6B465D23BE917(s_grayTex, 1, 1, 4, (bool)0, NULL);
+\t\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F c = { 0.5f, 0.5f, 0.5f, 0.5f };
+\t\t\t\tTexture2D_SetPixel_m2CCFC5F729135D59DC4A697C2605A3FC5C8574DB(s_grayTex, 0, 0, c, NULL);
+\t\t\t\tTexture2D_Apply_m36EE27E6F1BF7FB8C70A1D749DC4EE249810AA3A(s_grayTex, (bool)0, (bool)0, NULL);
+\t\t\t}
+\t\t\tShader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16(_stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, (Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700*)s_grayTex, NULL);
+\t\t}
+\t}
+\tcatch (Il2CppExceptionWrapper&) {}
+}
 
 static void OriPort_SanitizeSceneRenderers()
 {
+\tif (g_OriDebug.sanitize_mode == 0) return;
 \tstatic bool s_init = false;
 \tif (!s_init)
 \t{
@@ -700,6 +975,11 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t}
 \t\tstatic uint64_t s_lastSig = 0;
 \t\tstatic int32_t s_repeatPasses = 0;
+\t\tif (g_OriDebug.force_resanitize != 0)
+\t\t{
+\t\t\ts_lastSig = 0;
+\t\t\tg_OriDebug.force_resanitize = 0;
+\t\t}
 \t\tif (sig == s_lastSig && s_repeatPasses <= 0)
 \t\t{
 \t\t\treturn;
@@ -712,6 +992,18 @@ static void OriPort_SanitizeSceneRenderers()
 \t\telse
 \t\t{
 \t\t\ts_repeatPasses--;
+\t\t}
+\t\tif (g_OriDebug.sanitize_mode == 2)
+\t\t{
+\t\t\tfor (int32_t i = 0; i < count; i++)
+\t\t\t{
+\t\t\t\tObject_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C* obj = objs->GetAt(static_cast<il2cpp_array_size_t>(i));
+\t\t\t\tif (obj == NULL) continue;
+\t\t\t\tRenderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* ren = (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF*)CastclassClass((RuntimeObject*)obj, Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_il2cpp_TypeInfo_var);
+\t\t\t\tif (ren == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(ren, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL)) continue;
+\t\t\t\tRenderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(ren, (bool)1, NULL);
+\t\t\t}
+\t\t\treturn;
 \t\t}
 \t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* textShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD, NULL);
 \t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* fallbackShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E, NULL);
@@ -781,13 +1073,299 @@ static void OriPort_SanitizeSceneRenderers()
 \t{
 \t}
 }
+
+static void OriPort_DumpInspectorLog()
+{
+\tOriPort_EnsurePaths();
+\tif (!s_oriPathsInit) return;
+\tFILE* fp = fopen(s_oriInspectorPath, "w");
+\tif (!fp) return;
+\tfprintf(fp, "=== ORI IOS INSPECTOR LOG ===\\n");
+\ttry
+\t{
+\t\tint32_t frame = Time_get_frameCount_m4A42E558A71301A216BDC49EC402D62F19C79667(NULL);
+\t\tfloat dt = Time_get_deltaTime_mC3195000401F0FD167DD2F948FD2BC58330D0865(NULL);
+\t\tfloat udt = Time_get_unscaledDeltaTime_mF057EECA857E5C0F90A3F910D26D3EE59F27C4B5(NULL);
+\t\tfloat fdt = Time_get_fixedDeltaTime_m43136893D00AF5D5FE80AD05609558F6E2381381(NULL);
+\t\tfloat ts = Time_get_timeScale_m1F45A413D4EEA08B1E0988022512C137F6C1E616(NULL);
+\t\tfloat fps = (udt > 0.0001f) ? (1.0f / udt) : 0.0f;
+\t\tScene_tA1DC762B79745EB5140F054C884855B922318356 sc = SceneManager_GetActiveScene_m0B320EC4302F51A71495D1CCD1A0FF9C2ED1FDC8(NULL);
+\t\tString_t* scNameStr = Scene_get_name_m3C818DFA663E159274DAD823B780C7616C5E2A8C(&sc, NULL);
+\t\tchar scName[128];
+\t\tOriPort_StrToUtf8(scNameStr, scName, sizeof(scName));
+\t\tfprintf(fp, "Frame: %d | FPS: %.1f | Scene: %s\\n", (int)frame, fps, scName);
+\t\tfprintf(fp, "deltaTime: %.5f | fixedDeltaTime: %.5f | timeScale: %.2f\\n", dt, fdt, ts);
+\t\tfprintf(fp, "Config: post_mode=%d motion_blur=%d bloom=%d distort=%d alpha_grab=%d sanitizer=%d trans_alpha=%.2f turb=%d fixed_hz=%d\\n",
+\t\t\t(int)g_OriDebug.post_mode, (int)g_OriDebug.motion_blur, (int)g_OriDebug.bloom_blur,
+\t\t\t(int)g_OriDebug.distortions, (int)g_OriDebug.alpha_grab_mode, (int)g_OriDebug.sanitize_mode,
+\t\t\tg_OriDefaultTransAlpha, (int)g_OriDebug.turbulence, (int)g_OriDebug.fixed_hz);
+\t\tfprintf(fp, "Exceptions Caught: RenderFrame=%d | DoPost=%d\\n\\n", (int)g_OriDebug.exc_render_frame, (int)g_OriDebug.exc_dopost);
+\t}
+\tcatch (Il2CppExceptionWrapper&) {}
+
+\tOriPort_DumpCameraState((void*)fp);
+\tfprintf(fp, "\\n");
+\tOriPort_DumpPostProcessState((void*)fp);
+\tfprintf(fp, "\\n=== SCENE RENDERERS ===\\n");
+
+\ttry
+\t{
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&_stringLiteral47A3FAF17D89549FD0F0ECA7370B81F7C80DFCDE);
+\t\tRuntimeTypeHandle_t332A452B8B6179E4469B69525D0FE82A88030F7B rHandle = { reinterpret_cast<intptr_t>(Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_0_0_0_var) };
+\t\til2cpp_codegen_runtime_class_init_inline(Type_t_il2cpp_TypeInfo_var);
+\t\tType_t* rType = Type_GetTypeFromHandle_m6062B81682F79A4D6DF2640692EE6D9987858C57(rHandle, NULL);
+\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\tObjectU5BU5D_tD4BF1BEC72A31DF6611C0B8FA3112AF128FC3F8A* objs = Object_FindObjectsOfType_m3F1266E2DA67B067B22A3105C8F86A4EECCFEC4A(rType, NULL);
+\t\tif (objs != NULL)
+\t\t{
+\t\t\tint32_t count = (int32_t)(((RuntimeArray*)objs)->max_length);
+\t\t\tfprintf(fp, "Total Renderers: %d\\n", (int)count);
+\t\t\tfor (int32_t i = 0; i < count; i++)
+\t\t\t{
+\t\t\t\tObject_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C* obj = objs->GetAt(static_cast<il2cpp_array_size_t>(i));
+\t\t\t\tif (obj == NULL) continue;
+\t\t\t\tRenderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* ren = (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF*)CastclassClass((RuntimeObject*)obj, Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_il2cpp_TypeInfo_var);
+\t\t\t\tif (ren == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(ren, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL)) continue;
+\t\t\t\tbool en = Renderer_get_enabled_mFDDF363859AEC88105A925FA7EA341C077B09B54(ren, NULL);
+\t\t\t\tint32_t sortOrder = Renderer_get_sortingOrder_m4CE7ADEEC8E2F28CC1D10B1D4091A10F8F1583FA(ren, NULL);
+\t\t\t\tchar goName[128] = "<null>";
+\t\t\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* go = Component_get_gameObject_m57AEFBB14DB39EC476F740BA000E170355DE691B((Component_t39FBE53E5EFCF4409111FB22C15FF73717632EC3*)ren, NULL);
+\t\t\t\tif (go != NULL && !Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)go, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t{
+\t\t\t\t\tOriPort_StrToUtf8(Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)go, NULL), goName, sizeof(goName));
+\t\t\t\t}
+\t\t\t\tMaterialU5BU5D_t2B1D11C42DB07A4400C0535F92DBB87A2E346D3D* mats = Renderer_get_sharedMaterials_m0B61AFD8EDA35A70C796FFB2F28BB62380051ABF(ren, NULL);
+\t\t\t\tif (mats == NULL) continue;
+\t\t\t\tint32_t mCount = (int32_t)(((RuntimeArray*)mats)->max_length);
+\t\t\t\tfor (int32_t j = 0; j < mCount; j++)
+\t\t\t\t{
+\t\t\t\t\tMaterial_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* mat = mats->GetAt(static_cast<il2cpp_array_size_t>(j));
+\t\t\t\t\tif (mat == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(mat, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL)) continue;
+\t\t\t\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* sh = Material_get_shader_m8B0C11AE6F2AD7DE30AF52D3195EB716F7A71983(mat, NULL);
+\t\t\t\t\tchar shName[128] = "<null>";
+\t\t\t\t\tif (sh != NULL && !Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(sh, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t{
+\t\t\t\t\t\tOriPort_StrToUtf8(Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392(sh, NULL), shName, sizeof(shName));
+\t\t\t\t\t}
+\t\t\t\t\tint32_t rq = Material_get_renderQueue_mC427C54D2667620CBB845559DA4DA31BE166C757(mat, NULL);
+\t\t\t\t\tfloat dfx = -999.0f;
+\t\t\t\t\tif (Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL))
+\t\t\t\t\t{
+\t\t\t\t\t\tVector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 df = Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL);
+\t\t\t\t\t\tdfx = df.___x;
+\t\t\t\t\t}
+\t\t\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F col = { -1.0f, -1.0f, -1.0f, -1.0f };
+\t\t\t\t\tif (Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteral47A3FAF17D89549FD0F0ECA7370B81F7C80DFCDE, NULL))
+\t\t\t\t\t{
+\t\t\t\t\t\tcol = Material_GetColor_mAC702C70081A597DD2AA2F4627B1A1C65DDF6609(mat, _stringLiteral47A3FAF17D89549FD0F0ECA7370B81F7C80DFCDE, NULL);
+\t\t\t\t\t}
+\t\t\t\t\tfprintf(fp, "[%d.%d] GO='%s' | en=%d | sort=%d | rq=%d | shader='%s' | df=%.2f | col=(%.2f,%.2f,%.2f,%.2f)\\n",
+\t\t\t\t\t\t(int)i, (int)j, goName, (int)en, (int)sortOrder, (int)rq, shName, dfx, col.___r, col.___g, col.___b, col.___a);
+\t\t\t\t}
+\t\t\t}
+\t\t}
+\t}
+\tcatch (Il2CppExceptionWrapper&)
+\t{
+\t\tfprintf(fp, "[Exception while enumerating renderers]\\n");
+\t}
+\tfclose(fp);
+}
+
+static void OriPort_DrawDebugOverlay()
+{
+\tif (!s_showDebugBtn && !g_OriDebug.panel_open) return;
+\tstatic bool s_guiMetaInit = false;
+\tif (!s_guiMetaInit)
+\t{
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&GUI_tA9CDB3D69DB13D51AD83ABDB587EF95947EC2D2A_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&GUIStyle_t20BA2F9F3FE9D13AAA607EEEBE5547835A6F6580_il2cpp_TypeInfo_var);
+\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\ts_guiMetaInit = true;
+\t}
+\ttry
+\t{
+\t\tstatic Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4* s_whiteTex = NULL;
+\t\tstatic GUIStyle_t20BA2F9F3FE9D13AAA607EEEBE5547835A6F6580* s_lblStyle = NULL;
+\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\tif (s_whiteTex == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(s_whiteTex, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t{
+\t\t\ts_whiteTex = (Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4*)il2cpp_codegen_object_new(Texture2D_tE6505BC111DD8A424A9DBE8E05D7D09E11FFFCF4_il2cpp_TypeInfo_var);
+\t\t\tTexture2D__ctor_mECF60A9EC0638EC353C02C8E99B6B465D23BE917(s_whiteTex, 1, 1, 4, (bool)0, NULL);
+\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F w = { 1.0f, 1.0f, 1.0f, 1.0f };
+\t\t\tTexture2D_SetPixel_m2CCFC5F729135D59DC4A697C2605A3FC5C8574DB(s_whiteTex, 0, 0, w, NULL);
+\t\t\tTexture2D_Apply_m36EE27E6F1BF7FB8C70A1D749DC4EE249810AA3A(s_whiteTex, (bool)0, (bool)0, NULL);
+\t\t}
+\t\til2cpp_codegen_runtime_class_init_inline(GUI_tA9CDB3D69DB13D51AD83ABDB587EF95947EC2D2A_il2cpp_TypeInfo_var);
+\t\tif (s_lblStyle == NULL)
+\t\t{
+\t\t\tGUISkin_t8C65CE1424D4B5D8D73022E266BDAD3BDE8612D9* skin = GUI_get_skin_m97EC9EB4628B311C0DB7DF9FB19FAD82D6790A1B(NULL);
+\t\t\tif (skin != NULL)
+\t\t\t{
+\t\t\t\tGUIStyle_t20BA2F9F3FE9D13AAA607EEEBE5547835A6F6580* baseLbl = GUISkin_get_label_m99E1A8D6D8592F88F581437D24DB1EDE05C63E5E(skin, NULL);
+\t\t\t\tif (baseLbl != NULL)
+\t\t\t\t{
+\t\t\t\t\ts_lblStyle = (GUIStyle_t20BA2F9F3FE9D13AAA607EEEBE5547835A6F6580*)il2cpp_codegen_object_new(GUIStyle_t20BA2F9F3FE9D13AAA607EEEBE5547835A6F6580_il2cpp_TypeInfo_var);
+\t\t\t\t\tGUIStyle__ctor_m17492C8BACB0D28C7701C11500A7132F11B5F04E(s_lblStyle, baseLbl, NULL);
+\t\t\t\t\tGUIStyle_set_alignment_mEDC62A775C9551DBD1FEE4043F115E034EF12937(s_lblStyle, 4, NULL);
+\t\t\t\t\tGUIStyle_set_fontStyle_m4166D61FBF25225F4A85BBEABCECE3F2DCEE714D(s_lblStyle, 1, NULL);
+\t\t\t\t\tGUIStyleState_t7A948723D9DCDFD8EE4F418B6EC909C18E023F95* st = GUIStyle_get_normal_mDEA2808FBD692E505784BD9E521738B4321BCA8F(s_lblStyle, NULL);
+\t\t\t\t\tif (st != NULL)
+\t\t\t\t\t{
+\t\t\t\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F w = { 1.0f, 1.0f, 1.0f, 1.0f };
+\t\t\t\t\t\tGUIStyleState_set_textColor_m5868D12858E6402247953BCCDDA7A543BE6084F1(st, w, NULL);
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t}
+\t\t}
+\t\tif (s_lblStyle == NULL) return;
+
+\t\tint32_t sw = Screen_get_width_mF608FF3252213E7EFA1F0D2F744C28110E9E5AC9(NULL);
+\t\tint32_t sh = Screen_get_height_m01A3102DE71EE1FBEA51D09D6B0261CF864FE8F9(NULL);
+\t\tfloat scale = (float)sh / 720.0f;
+\t\tif (scale < 0.75f) scale = 0.75f;
+\t\tGUIStyle_set_fontSize_m7F6DFD61AC55072C95DC3825B77FAE3F75F1CCFF(s_lblStyle, (int32_t)(16.0f * scale), NULL);
+
+\t\tstatic int32_t s_lastTapFrame = -10;
+\t\tint32_t curFrame = Time_get_frameCount_m4A42E558A71301A216BDC49EC402D62F19C79667(NULL);
+\t\tbool tapped = false;
+\t\tfloat tapX = -1.0f, tapY = -1.0f;
+\t\tif (curFrame != s_lastTapFrame)
+\t\t{
+\t\t\tint32_t tc = Input_get_touchCount_m057388BFC67A0F4CA53764B1022867ED81D01E39(NULL);
+\t\t\tfor (int32_t ti = 0; ti < tc; ti++)
+\t\t\t{
+\t\t\t\tTouch_t03E51455ED508492B3F278903A0114FA0E87B417 t = Input_GetTouch_m75D99FE801A94279874FA8DC6B6ADAD35F5123B1(ti, NULL);
+\t\t\t\tif (Touch_get_phase_mB82409FB2BE1C32ABDBA6A72E52A099D28AB70B0(&t, NULL) == 0)
+\t\t\t\t{
+\t\t\t\t\tVector2_t1FD6F485C871E832B347AB2DC8CBA08B739D8DF7 p = Touch_get_position_m41B9EB0F3F3E1BE98CEB388253A9E31979CB964A(&t, NULL);
+\t\t\t\t\ttapX = p.___x;
+\t\t\t\t\ttapY = (float)sh - p.___y;
+\t\t\t\t\ttapped = true;
+\t\t\t\t\ts_lastTapFrame = curFrame;
+\t\t\t\t\tbreak;
+\t\t\t\t}
+\t\t\t}
+\t\t\tif (!tapped && Input_GetMouseButtonDown_m8DFC792D15FFF15D311614D5CC6C5D055E5A1DE3(0, NULL))
+\t\t\t{
+\t\t\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 mp = Input_get_mousePosition_mFF21FBD2647DAE2A23BD4C45571CA95D05A0A42C(NULL);
+\t\t\t\ttapX = mp.___x;
+\t\t\t\ttapY = (float)sh - mp.___y;
+\t\t\t\ttapped = true;
+\t\t\t\ts_lastTapFrame = curFrame;
+\t\t\t}
+\t\t\tif (Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(356, NULL) || Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(358, NULL))
+\t\t\t{
+\t\t\t\tg_OriDebug.panel_open = !g_OriDebug.panel_open;
+\t\t\t\ts_lastTapFrame = curFrame;
+\t\t\t}
+\t\t}
+
+\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F oldCol = GUI_get_color_m15488B4AD785D10DEB5C66398D0FA9A0C0EA7ABB(NULL);
+\t\tMatrix4x4_tDB70CF134A14BA38190C59AA700BCE10E2AED3E6 oldMat = GUI_get_matrix_m3CA02DED0598EE32BD9E66CA533A78EFB0A246FC(NULL);
+\t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(Matrix4x4_get_identity_m6568A73831F3E2D587420D20FF423959D7D8AB56_inline(NULL), NULL);
+
+\t\tfloat bx = 24.0f * scale, by = 16.0f * scale, bw = 82.0f * scale, bh = 36.0f * scale;
+\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D dbgRect = { bx, by, bw, bh };
+\t\tif (tapped && tapX >= bx && tapX <= bx + bw && tapY >= by && tapY <= by + bh)
+\t\t{
+\t\t\tg_OriDebug.panel_open = !g_OriDebug.panel_open;
+\t\t\ttapped = false;
+\t\t}
+\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F btnBg = { 0.1f, 0.15f, 0.25f, 0.85f };
+\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(btnBg, NULL);
+\t\tGUI_DrawTexture_m05F173ECE6F2D78FFBDEB0052EB58AC2B5A7420E(dbgRect, (Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700*)s_whiteTex, 0, (bool)1, NULL);
+\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(Color_get_white_m068F5AF879B0FCA584E3693F762EA41BB65532C6_inline(NULL), NULL);
+\t\tGUI_Label_m0D7BA53414421D71010DFF628EAA6CCCB3DE737E(dbgRect, il2cpp_codegen_string_new_wrapper(g_OriDebug.panel_open ? "[CLOSE]" : "[DBG]"), s_lblStyle, NULL);
+
+\t\tif (g_OriDebug.panel_open)
+\t\t{
+\t\t\tfloat px = 24.0f * scale, py = 58.0f * scale, pw = 520.0f * scale, ph = 310.0f * scale;
+\t\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D panRect = { px, py, pw, ph };
+\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F panBg = { 0.05f, 0.07f, 0.12f, 0.90f };
+\t\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(panBg, NULL);
+\t\t\tGUI_DrawTexture_m05F173ECE6F2D78FFBDEB0052EB58AC2B5A7420E(panRect, (Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700*)s_whiteTex, 0, (bool)1, NULL);
+
+\t\t\tfloat udt = Time_get_unscaledDeltaTime_mF057EECA857E5C0F90A3F910D26D3EE59F27C4B5(NULL);
+\t\t\tfloat fps = (udt > 0.0001f) ? (1.0f / udt) : 0.0f;
+\t\t\tchar hdr[160];
+\t\t\tsnprintf(hdr, sizeof(hdr), "FPS: %.1f | Exc(RF:%d DP:%d) | ori_debug.txt Live", fps, (int)g_OriDebug.exc_render_frame, (int)g_OriDebug.exc_dopost);
+\t\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D hdrRect = { px + 8.0f * scale, py + 4.0f * scale, pw - 16.0f * scale, 28.0f * scale };
+\t\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(Color_get_white_m068F5AF879B0FCA584E3693F762EA41BB65532C6_inline(NULL), NULL);
+\t\t\tGUI_Label_m0D7BA53414421D71010DFF628EAA6CCCB3DE737E(hdrRect, il2cpp_codegen_string_new_wrapper(hdr), s_lblStyle, NULL);
+
+\t\t\tconst char* postNames[3] = { "Compat", "DoPost", "Blit" };
+\t\t\tconst char* agNames[4] = { "UberAB", "ManGrab", "Black0", "Gray.5" };
+\t\t\tconst char* sanNames[3] = { "OFF", "Normal", "ReEnAll" };
+\t\t\tchar bLabels[10][64];
+\t\t\tsnprintf(bLabels[0], 64, "Post: %s (%d)", postNames[g_OriDebug.post_mode % 3], (int)g_OriDebug.post_mode);
+\t\t\tsnprintf(bLabels[1], 64, "MotionBlur: %s", g_OriDebug.motion_blur ? "ON" : "OFF");
+\t\t\tsnprintf(bLabels[2], 64, "BloomBlur: %s", g_OriDebug.bloom_blur ? "ON" : "OFF");
+\t\t\tsnprintf(bLabels[3], 64, "Distort: %s", g_OriDebug.distortions ? "ON" : "OFF");
+\t\t\tsnprintf(bLabels[4], 64, "AlphaGrab: %s", agNames[g_OriDebug.alpha_grab_mode % 4]);
+\t\t\tsnprintf(bLabels[5], 64, "Sanitizer: %s", sanNames[g_OriDebug.sanitize_mode % 3]);
+\t\t\tsnprintf(bLabels[6], 64, "TransAlpha: %.1f", g_OriDefaultTransAlpha);
+\t\t\tsnprintf(bLabels[7], 64, "Turbulence: %s", g_OriDebug.turbulence ? "ON" : "OFF");
+\t\t\tsnprintf(bLabels[8], 64, "FixedHz:%d TS:%.2f", (int)g_OriDebug.fixed_hz, g_OriDebug.time_scale);
+\t\t\tsnprintf(bLabels[9], 64, "[DUMP INSPECTOR LOG]");
+
+\t\t\tfloat cw = (pw - 24.0f * scale) * 0.5f;
+\t\t\tfloat ch = 46.0f * scale;
+\t\t\tbool changed = false;
+\t\t\tfor (int idx = 0; idx < 10; idx++)
+\t\t\t{
+\t\t\t\tint col = idx % 2;
+\t\t\t\tint row = idx / 2;
+\t\t\t\tfloat rx = px + 8.0f * scale + col * (cw + 8.0f * scale);
+\t\t\t\tfloat ry = py + 36.0f * scale + row * (ch + 6.0f * scale);
+\t\t\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D r = { rx, ry, cw, ch };
+\t\t\t\tif (tapped && tapX >= rx && tapX <= rx + cw && tapY >= ry && tapY <= ry + ch)
+\t\t\t\t{
+\t\t\t\t\ttapped = false;
+\t\t\t\t\tchanged = true;
+\t\t\t\t\tif (idx == 0) g_OriDebug.post_mode = (g_OriDebug.post_mode + 1) % 3;
+\t\t\t\t\telse if (idx == 1) g_OriDebug.motion_blur = !g_OriDebug.motion_blur;
+\t\t\t\t\telse if (idx == 2) g_OriDebug.bloom_blur = !g_OriDebug.bloom_blur;
+\t\t\t\t\telse if (idx == 3) g_OriDebug.distortions = !g_OriDebug.distortions;
+\t\t\t\t\telse if (idx == 4) g_OriDebug.alpha_grab_mode = (g_OriDebug.alpha_grab_mode + 1) % 4;
+\t\t\t\t\telse if (idx == 5) { g_OriDebug.sanitize_mode = (g_OriDebug.sanitize_mode + 1) % 3; g_OriDebug.force_resanitize = 1; }
+\t\t\t\t\telse if (idx == 6) { g_OriDefaultTransAlpha = (g_OriDefaultTransAlpha < 0.25f) ? 0.5f : ((g_OriDefaultTransAlpha < 0.75f) ? 1.0f : 0.0f); g_OriDebug.orig_alpha = g_OriDefaultTransAlpha; }
+\t\t\t\t\telse if (idx == 7) g_OriDebug.turbulence = !g_OriDebug.turbulence;
+\t\t\t\t\telse if (idx == 8)
+\t\t\t\t\t{
+\t\t\t\t\t\tif (g_OriDebug.fixed_hz == 60 && g_OriDebug.time_scale > 0.9f) g_OriDebug.fixed_hz = 120;
+\t\t\t\t\t\telse if (g_OriDebug.fixed_hz == 120 && g_OriDebug.time_scale > 0.9f) { g_OriDebug.fixed_hz = 60; g_OriDebug.time_scale = 0.5f; }
+\t\t\t\t\t\telse if (g_OriDebug.time_scale > 0.4f) g_OriDebug.time_scale = 0.25f;
+\t\t\t\t\t\telse g_OriDebug.time_scale = 1.0f;
+\t\t\t\t\t\tOriPort_ApplyTimeSettings();
+\t\t\t\t\t}
+\t\t\t\t\telse if (idx == 9) g_OriDebug.dump_now = 1;
+\t\t\t\t}
+\t\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F cellBg = (idx == 9)
+\t\t\t\t\t? Color_tD001788D726C3A7F1379BEED0260B9591F440C1F{ 0.15f, 0.45f, 0.20f, 0.92f }
+\t\t\t\t\t: Color_tD001788D726C3A7F1379BEED0260B9591F440C1F{ 0.18f, 0.24f, 0.36f, 0.92f };
+\t\t\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(cellBg, NULL);
+\t\t\t\tGUI_DrawTexture_m05F173ECE6F2D78FFBDEB0052EB58AC2B5A7420E(r, (Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700*)s_whiteTex, 0, (bool)1, NULL);
+\t\t\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(Color_get_white_m068F5AF879B0FCA584E3693F762EA41BB65532C6_inline(NULL), NULL);
+\t\t\t\tGUI_Label_m0D7BA53414421D71010DFF628EAA6CCCB3DE737E(r, il2cpp_codegen_string_new_wrapper(bLabels[idx]), s_lblStyle, NULL);
+\t\t\t}
+\t\t\tif (changed) OriPort_SaveConfig();
+\t\t}
+
+\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(oldCol, NULL);
+\t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(oldMat, NULL);
+\t}
+\tcatch (Il2CppExceptionWrapper&) {}
+}
 """
     content = content.replace(render_frame_decl, extern_decls + render_frame_decl, 1)
 
     # 1. In OriPortManualPresenter_RenderFrame:
-    #    - Periodically run OriPort_SanitizeSceneRenderers() (every 15 frames; fast-exits in 2us when scene is unchanged)
-    #    - Call OriPortManualPresenter_UpdateAlphaGrab(__this, V_2, V_3, NULL) after Camera.Render()
-    #    - Do NOT call OriPortManualPresenter_RenderUserInterface (UberPostProcess.DoCompatibilityPost already renders UI cameras, and RenderUserInterface logs "Tag: UICamera is not defined.")
+    #    - Sync ori_debug.txt every 60 frames & trigger OriPort_DumpInspectorLog() if dump_now != 0
+    #    - Periodically run OriPort_SanitizeSceneRenderers() (every 15 frames)
+    #    - Call OriPort_UpdateTurbulenceGlobals()
+    #    - Call OriPortManualPresenter_UpdateAlphaGrab when alpha_grab_mode == 1
     old_render_call = """\t\t\t\tShader_SetGlobalFloat_m8AA7A4D7D73914A00D9207D78621EDDF70602FB0(_stringLiteral682BF2EFA52E75C110EBBFF64FA09D54B09DA240, (-1.0f), NULL);
 \t\t\t\tOriPortManualPresenter_set_IsRenderingPresentedFrame_m1760BA79F65488022AE1A93714CC89A44E71424E_inline((bool)1, NULL);
 \t\t\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_71 = V_1;
@@ -795,7 +1373,7 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\tCamera_Render_m6089001EB6710DA9A21C87185D65922F13A24509(L_71, NULL);
 \t\t\t\tgoto IL_01b7;"""
 
-    new_render_call = """\t\t\t\tstatic int32_t s_sanitizeCounter = 0;
+    prev_render_call_1 = """\t\t\t\tstatic int32_t s_sanitizeCounter = 0;
 \t\t\t\tif ((s_sanitizeCounter++ % 15) == 0)
 \t\t\t\t{
 \t\t\t\t\tOriPort_SanitizeSceneRenderers();
@@ -814,8 +1392,7 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\t}
 \t\t\t\tgoto IL_01b7;"""
 
-    prev_render_call = new_render_call
-    new_render_call = (
+    prev_render_call_2 = (
         "\t\t\t\tstatic int32_t s_sanitizeCounter = 0;\n"
         "\t\t\t\tif ((s_sanitizeCounter++ % 15) == 0)\n"
         "\t\t\t\t{\n"
@@ -829,16 +1406,47 @@ static void OriPort_SanitizeSceneRenderers()
         "\t\t\t\tCamera_Render_m6089001EB6710DA9A21C87185D65922F13A24509(L_71, NULL);\n"
         "\t\t\t\tgoto IL_01b7;"
     )
-    if prev_render_call in content:
-        content = content.replace(prev_render_call, new_render_call, 1)
-    elif "OriPort_UpdateTurbulenceGlobals();" not in content.split(render_frame_decl, 1)[1]:
+
+    new_render_call = (
+        "\t\t\t\tstatic int32_t s_sanitizeCounter = 0;\n"
+        "\t\t\t\tif ((s_sanitizeCounter % 60) == 0)\n"
+        "\t\t\t\t{\n"
+        "\t\t\t\t\tOriPort_LoadOrSyncConfig();\n"
+        "\t\t\t\t}\n"
+        "\t\t\t\tif (g_OriDebug.dump_now != 0)\n"
+        "\t\t\t\t{\n"
+        "\t\t\t\t\tg_OriDebug.dump_now = 0;\n"
+        "\t\t\t\t\tOriPort_SaveConfig();\n"
+        "\t\t\t\t\tOriPort_DumpInspectorLog();\n"
+        "\t\t\t\t}\n"
+        "\t\t\t\tif ((s_sanitizeCounter++ % 15) == 0 || g_OriDebug.force_resanitize != 0)\n"
+        "\t\t\t\t{\n"
+        "\t\t\t\t\tOriPort_SanitizeSceneRenderers();\n"
+        "\t\t\t\t}\n"
+        "\t\t\t\tOriPort_UpdateTurbulenceGlobals();\n"
+        "\t\t\t\tShader_SetGlobalFloat_m8AA7A4D7D73914A00D9207D78621EDDF70602FB0(_stringLiteral682BF2EFA52E75C110EBBFF64FA09D54B09DA240, (-1.0f), NULL);\n"
+        "\t\t\t\tOriPortManualPresenter_set_IsRenderingPresentedFrame_m1760BA79F65488022AE1A93714CC89A44E71424E_inline((bool)1, NULL);\n"
+        "\t\t\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_71 = V_1;\n"
+        "\t\t\t\tNullCheck(L_71);\n"
+        "\t\t\t\tCamera_Render_m6089001EB6710DA9A21C87185D65922F13A24509(L_71, NULL);\n"
+        "\t\t\t\tif (g_OriDebug.alpha_grab_mode == 1)\n"
+        "\t\t\t\t{\n"
+        "\t\t\t\t\ttry { OriPortManualPresenter_UpdateAlphaGrab_m6D5C8A797031A3CAABF1F73E449DA1A147570CEF(__this, V_2, V_3, NULL); }\n"
+        "\t\t\t\t\tcatch (Il2CppExceptionWrapper&) {}\n"
+        "\t\t\t\t}\n"
+        "\t\t\t\tgoto IL_01b7;"
+    )
+    if prev_render_call_2 in content:
+        content = content.replace(prev_render_call_2, new_render_call, 1)
+    elif prev_render_call_1 in content:
+        content = content.replace(prev_render_call_1, new_render_call, 1)
+    elif "OriPort_LoadOrSyncConfig();" not in content.split(render_frame_decl, 1)[1]:
         if old_render_call not in content:
             raise RuntimeError("Could not find Camera_Render block in OriPortManualPresenter_RenderFrame")
         content = content.replace(old_render_call, new_render_call, 1)
 
     # 2. Wrap OriPortManualPresenter_RenderFrame call inside U3CStartU3Ed__13_MoveNext in a try/catch
-    #    so that if any single frame ever throws a managed exception during rendering, the
-    #    WaitForEndOfFrame presenter coroutine never terminates!
+    #    and count exceptions in g_OriDebug.exc_render_frame
     old_movenext_call = """IL_003d:
 \t{
 \t\t__this->___U3CU3E1__state = (-1);
@@ -848,7 +1456,7 @@ static void OriPort_SanitizeSceneRenderers()
 \t\tgoto IL_0029;
 \t}"""
 
-    new_movenext_call = """IL_003d:
+    prev_movenext_call = """IL_003d:
 \t{
 \t\t__this->___U3CU3E1__state = (-1);
 \t\tOriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* L_7 = V_1;
@@ -865,12 +1473,32 @@ static void OriPort_SanitizeSceneRenderers()
 \t\tgoto IL_0029;
 \t}"""
 
-    if "if (L_7 != NULL)" not in content:
+    new_movenext_call = """IL_003d:
+\t{
+\t\t__this->___U3CU3E1__state = (-1);
+\t\tOriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* L_7 = V_1;
+\t\tif (L_7 != NULL)
+\t\t{
+\t\t\ttry
+\t\t\t{
+\t\t\t\tOriPortManualPresenter_RenderFrame_m9CADB5C9F1B1990254DE31AA31AAB8DA5F9F8052(L_7, NULL);
+\t\t\t}
+\t\t\tcatch (Il2CppExceptionWrapper&)
+\t\t\t{
+\t\t\t\tg_OriDebug.exc_render_frame++;
+\t\t\t}
+\t\t}
+\t\tgoto IL_0029;
+\t}"""
+
+    if prev_movenext_call in content:
+        content = content.replace(prev_movenext_call, new_movenext_call, 1)
+    elif "g_OriDebug.exc_render_frame++;" not in content:
         if old_movenext_call not in content:
             raise RuntimeError("Could not find IL_003d block in U3CStartU3Ed__13_MoveNext")
         content = content.replace(old_movenext_call, new_movenext_call, 1)
 
-    # 3. Fix GUI.depth in OriPortManualPresenter_OnGUI and hide OriPortTouchControls (user plays with a gamepad)
+    # 3. Fix GUI.depth in OriPortManualPresenter_OnGUI and draw the in-game debug overlay
     on_gui_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_OnGUI_m797B8337761723FC6A2D02EDAF956B10ED279B12"
     on_gui_body = """\tstatic bool s_Il2CppMethodInitialized;
 \tif (!s_Il2CppMethodInitialized)
@@ -878,16 +1506,6 @@ static void OriPort_SanitizeSceneRenderers()
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&GUI_tA9CDB3D69DB13D51AD83ABDB587EF95947EC2D2A_il2cpp_TypeInfo_var);
 \t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
 \t\ts_Il2CppMethodInitialized = true;
-\t}
-\t{
-\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_0 = __this->___m_frame;
-\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
-\t\tbool L_1;
-\t\tL_1 = Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(L_0, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL);
-\t\tif (L_1)
-\t\t{
-\t\t\tgoto IL_0060;
-\t\t}
 \t}
 \t{
 \t\tEvent_tEBC6F24B56CE22B9C9AD1AC6C24A6B83BC3860CB* L_2;
@@ -901,23 +1519,26 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t}
 \t}
 \t{
-\t\til2cpp_codegen_runtime_class_init_inline(GUI_tA9CDB3D69DB13D51AD83ABDB587EF95947EC2D2A_il2cpp_TypeInfo_var);
-\t\tGUI_set_depth_m37E8C151AD6D1B28DDFABB64A0974398AA8EC44E(((int32_t)1000), NULL);
-\t\tMatrix4x4_tDB70CF134A14BA38190C59AA700BCE10E2AED3E6 L_4;
-\t\tL_4 = GUI_get_matrix_m3CA02DED0598EE32BD9E66CA533A78EFB0A246FC(NULL);
-\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F L_5;
-\t\tL_5 = GUI_get_color_m15488B4AD785D10DEB5C66398D0FA9A0C0EA7ABB(NULL);
-\t\tMatrix4x4_tDB70CF134A14BA38190C59AA700BCE10E2AED3E6 L_6;
-\t\tL_6 = Matrix4x4_get_identity_m6568A73831F3E2D587420D20FF423959D7D8AB56_inline(NULL);
-\t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(L_6, NULL);
-\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F L_7;
-\t\tL_7 = Color_get_white_m068F5AF879B0FCA584E3693F762EA41BB65532C6_inline(NULL);
-\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(L_7, NULL);
-\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D L_8 = __this->___m_displayRect;
-\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_9 = __this->___m_frame;
-\t\tGUI_DrawTexture_m05F173ECE6F2D78FFBDEB0052EB58AC2B5A7420E(L_8, L_9, 0, (bool)0, NULL);
-\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(L_5, NULL);
-\t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(L_4, NULL);
+\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_0 = __this->___m_frame;
+\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\tbool L_1 = Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(L_0, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL);
+\t\tif (!L_1)
+\t\t{
+\t\t\til2cpp_codegen_runtime_class_init_inline(GUI_tA9CDB3D69DB13D51AD83ABDB587EF95947EC2D2A_il2cpp_TypeInfo_var);
+\t\t\tGUI_set_depth_m37E8C151AD6D1B28DDFABB64A0974398AA8EC44E(((int32_t)1000), NULL);
+\t\t\tMatrix4x4_tDB70CF134A14BA38190C59AA700BCE10E2AED3E6 L_4 = GUI_get_matrix_m3CA02DED0598EE32BD9E66CA533A78EFB0A246FC(NULL);
+\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F L_5 = GUI_get_color_m15488B4AD785D10DEB5C66398D0FA9A0C0EA7ABB(NULL);
+\t\t\tMatrix4x4_tDB70CF134A14BA38190C59AA700BCE10E2AED3E6 L_6 = Matrix4x4_get_identity_m6568A73831F3E2D587420D20FF423959D7D8AB56_inline(NULL);
+\t\t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(L_6, NULL);
+\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F L_7 = Color_get_white_m068F5AF879B0FCA584E3693F762EA41BB65532C6_inline(NULL);
+\t\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(L_7, NULL);
+\t\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D L_8 = __this->___m_displayRect;
+\t\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_9 = __this->___m_frame;
+\t\t\tGUI_DrawTexture_m05F173ECE6F2D78FFBDEB0052EB58AC2B5A7420E(L_8, L_9, 0, (bool)0, NULL);
+\t\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(L_5, NULL);
+\t\t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(L_4, NULL);
+\t\t}
+\t\tOriPort_DrawDebugOverlay();
 \t}
 
 IL_0060:
@@ -1392,14 +2013,24 @@ def patch_assembly_csharp_25(cpp_dir: str) -> None:
         "\t\treturn;\n"
         "\t}"
     )
-    new_orig_alpha = (
+    prev_orig_alpha = (
         "IL_007d:\n"
         "\t{\n"
         "\t\t__this->___OriginalAlpha = (0.5f);\n"
         "\t\treturn;\n"
         "\t}"
     )
-    if "__this->___OriginalAlpha = (0.5f);" not in content:
+    new_orig_alpha = (
+        "IL_007d:\n"
+        "\t{\n"
+        "\t\textern float g_OriDefaultTransAlpha;\n"
+        "\t\t__this->___OriginalAlpha = g_OriDefaultTransAlpha;\n"
+        "\t\treturn;\n"
+        "\t}"
+    )
+    if prev_orig_alpha in content:
+        content = content.replace(prev_orig_alpha, new_orig_alpha, 1)
+    elif "__this->___OriginalAlpha = g_OriDefaultTransAlpha;" not in content:
         if old_orig_alpha not in content:
             raise RuntimeError("Could not find IL_007d in RendererData__ctor (Assembly-CSharp__25.cpp)")
         content = content.replace(old_orig_alpha, new_orig_alpha, 1)
@@ -1407,8 +2038,16 @@ def patch_assembly_csharp_25(cpp_dir: str) -> None:
     # 2. Export OriPort_UpdateTurbulenceGlobals() so OriPortManualPresenter_RenderFrame updates wind/turbulence shader globals
     #    every frame before manual Camera.Render() (since TurbulenceManager.OnRenderObject only fires for its own GameObject's camera).
     turb_helper = (
+        "struct OriPortDebugConfig {\n"
+        "\tint32_t post_mode; int32_t bloom_blur; int32_t motion_blur; int32_t distortions;\n"
+        "\tint32_t alpha_grab_mode; int32_t sanitize_mode; int32_t clamp_depth; float orig_alpha;\n"
+        "\tint32_t turbulence; int32_t fixed_hz; float time_scale; int32_t dump_now;\n"
+        "\tint32_t panel_open; int32_t exc_render_frame; int32_t exc_dopost; int32_t force_resanitize;\n"
+        "};\n"
+        "extern OriPortDebugConfig g_OriDebug;\n"
         "IL2CPP_EXTERN_C void OriPort_UpdateTurbulenceGlobals()\n"
         "{\n"
+        "\tif (!g_OriDebug.turbulence) return;\n"
         "\tstatic bool s_init = false;\n"
         "\tif (!s_init)\n"
         "\t{\n"
@@ -1425,10 +2064,15 @@ def patch_assembly_csharp_25(cpp_dir: str) -> None:
         "}\n"
     )
     turb_target = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TurbulenceManager_OnRenderObject_mA6E707E9EEFAF81D67E7783C48370658C94B5A7D"
-    if "void OriPort_UpdateTurbulenceGlobals()" not in content:
-        if turb_target not in content:
-            raise RuntimeError("Could not find TurbulenceManager_OnRenderObject in Assembly-CSharp__25.cpp")
-        content = content.replace(turb_target, turb_helper + turb_target, 1)
+    old_turb_idx = content.find("struct OriPortDebugConfig {")
+    if old_turb_idx == -1:
+        old_turb_idx = content.find("IL2CPP_EXTERN_C void OriPort_UpdateTurbulenceGlobals()")
+    t_idx = content.find(turb_target)
+    if old_turb_idx != -1 and t_idx != -1 and old_turb_idx < t_idx:
+        content = content[:old_turb_idx] + content[t_idx:]
+    if turb_target not in content:
+        raise RuntimeError("Could not find TurbulenceManager_OnRenderObject in Assembly-CSharp__25.cpp")
+    content = content.replace(turb_target, turb_helper + turb_target, 1)
 
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -1441,36 +2085,146 @@ def patch_assembly_csharp_26(cpp_dir: str) -> None:
         content = f.read()
 
     # 1. Fix UberAlphaBuffer.SetCurrentAlphaGrab to use Shader.SetGlobalTexture("_AlphaGrabTex", m_alphaBuffer)
-    #    instead of the stripped/deprecated RenderTexture.SetGlobalShaderProperty.
-    extern_set_global_tex = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16 (String_t* ___0_name, Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* ___1_value, const RuntimeMethod* method);\n"
+    #    and export OriPort_DumpPostProcessState + g_OriDebug externs.
     alpha_grab_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberAlphaBuffer_SetCurrentAlphaGrab_m69077B2FA1A7F07E8B64E8E4FD884979B6F50E6C"
-    # Clean up old wrong hash if previously applied locally
-    content = content.replace("Shader_SetGlobalTexture_mAB95343764A1E9214DF3D80E029E03F6AD0BE230", "Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16")
-    if extern_set_global_tex not in content:
-        content = content.replace(alpha_grab_decl, extern_set_global_tex + alpha_grab_decl, 1)
+    old_ext_idx = content.find("#include <stdio.h>\nstruct OriPortDebugConfig")
+    if old_ext_idx == -1:
+        old_ext_idx = content.find("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16")
+    ag_idx = content.find(alpha_grab_decl)
+    if old_ext_idx != -1 and ag_idx != -1 and old_ext_idx < ag_idx:
+        content = content[:old_ext_idx] + content[ag_idx:]
+
+    ac26_extern_block = (
+        "#include <stdio.h>\n"
+        "struct OriPortDebugConfig {\n"
+        "\tint32_t post_mode; int32_t bloom_blur; int32_t motion_blur; int32_t distortions;\n"
+        "\tint32_t alpha_grab_mode; int32_t sanitize_mode; int32_t clamp_depth; float orig_alpha;\n"
+        "\tint32_t turbulence; int32_t fixed_hz; float time_scale; int32_t dump_now;\n"
+        "\tint32_t panel_open; int32_t exc_render_frame; int32_t exc_dopost; int32_t force_resanitize;\n"
+        "};\n"
+        "extern OriPortDebugConfig g_OriDebug;\n"
+        "IL2CPP_EXTERN_C void OriPort_ApplyAlphaGrabOverride();\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16 (String_t* ___0_name, Texture_t791CBB51219779964E0E8A2ED7C1AA5F2C395CDC3DF16_dummy* ___1_value, const RuntimeMethod* method);\n"
+    ).replace("Texture_t791CBB51219779964E0E8A2ED7C1AA5F2C395CDC3DF16_dummy", "Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700")
+    ac26_extern_block += (
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberPostProcess_DoCompatibilityPost_m6900914609988B9805C421FA7DDAFFA8B3C083FB (UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* __this, RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* ___0_source, RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* ___1_destination, const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool UberPostProcess_get_DoMotionBlur_m611984FA0A564898FD6C57461A83201548A330B2 (UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* __this, const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Vector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 UberPostProcess_get_Speed_mF6F89A4BCD435E117D3A73DE74859E15432350DE_inline (UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* __this, const RuntimeMethod* method);\n"
+        "IL2CPP_EXTERN_C void OriPort_DumpPostProcessState(void* fpVoid)\n"
+        "{\n"
+        "\tFILE* fp = (FILE*)fpVoid;\n"
+        "\tif (fp == NULL) return;\n"
+        "\tstatic bool s_init = false;\n"
+        "\tif (!s_init)\n"
+        "\t{\n"
+        "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var);\n"
+        "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&List_1_get_Count_m46D4ED562258FC34C735632E1312C5E45B64FF43_RuntimeMethod_var);\n"
+        "\t\ts_init = true;\n"
+        "\t}\n"
+        "\tfprintf(fp, \"=== UBER POST PROCESS STATE ===\\n\");\n"
+        "\ttry\n"
+        "\t{\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var);\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\t\tUberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* inst = ((UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_StaticFields*)il2cpp_codegen_static_fields_for(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var))->___s_instance;\n"
+        "\t\tif (inst == NULL || !Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)inst, NULL))\n"
+        "\t\t{\n"
+        "\t\t\tfprintf(fp, \"UberPostProcess.Instance: NULL\\n\\n\");\n"
+        "\t\t\treturn;\n"
+        "\t\t}\n"
+        "\t\tbool doMB = UberPostProcess_get_DoMotionBlur_m611984FA0A564898FD6C57461A83201548A330B2(inst, NULL);\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 spd = UberPostProcess_get_Speed_mF6F89A4BCD435E117D3A73DE74859E15432350DE_inline(inst, NULL);\n"
+        "\t\tint32_t ptW = 0, ptH = 0, abW = 0, abH = 0, subCount = 0;\n"
+        "\t\tif (inst->___PostTarget != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)inst->___PostTarget, NULL))\n"
+        "\t\t{\n"
+        "\t\t\tptW = VirtualFuncInvoker0< int32_t >::Invoke(4, inst->___PostTarget);\n"
+        "\t\t\tptH = VirtualFuncInvoker0< int32_t >::Invoke(6, inst->___PostTarget);\n"
+        "\t\t}\n"
+        "\t\tif (inst->___CurrentAlphaBuffer != NULL && inst->___CurrentAlphaBuffer->___m_alphaBuffer != NULL &&\n"
+        "\t\t    Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)inst->___CurrentAlphaBuffer->___m_alphaBuffer, NULL))\n"
+        "\t\t{\n"
+        "\t\t\tabW = VirtualFuncInvoker0< int32_t >::Invoke(4, inst->___CurrentAlphaBuffer->___m_alphaBuffer);\n"
+        "\t\t\tabH = VirtualFuncInvoker0< int32_t >::Invoke(6, inst->___CurrentAlphaBuffer->___m_alphaBuffer);\n"
+        "\t\t}\n"
+        "\t\tList_1_tFC105D2D316B9A77BBADFFAD681A162E1885BEEF* subCams = ((UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_StaticFields*)il2cpp_codegen_static_fields_for(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var))->___s_subCams;\n"
+        "\t\tif (subCams != NULL)\n"
+        "\t\t{\n"
+        "\t\t\tsubCount = List_1_get_Count_m46D4ED562258FC34C735632E1312C5E45B64FF43_inline(subCams, List_1_get_Count_m46D4ED562258FC34C735632E1312C5E45B64FF43_RuntimeMethod_var);\n"
+        "\t\t}\n"
+        "\t\tfprintf(fp, \"DoMotionBlur(raw)=%d g_OriDebug.motion_blur=%d Speed=(%.3f, %.3f, %.3f) MotionBlurSpread=%.3f\\n\", (int)doMB, g_OriDebug.motion_blur, spd.___x, spd.___y, spd.___z, inst->___MotionBlurSpread);\n"
+        "\t\tfprintf(fp, \"PostTarget=%dx%d AlphaBuffer=%dx%d m_doBlur=%d SepBlurSpread=%.3f s_subCams.Count=%d\\n\\n\", ptW, ptH, abW, abH, (int)inst->___m_doBlur, inst->___SepBlurSpread, subCount);\n"
+        "\t}\n"
+        "\tcatch (Il2CppExceptionWrapper&)\n"
+        "\t{\n"
+        "\t\tfprintf(fp, \"Exception while dumping UberPostProcess state\\n\\n\");\n"
+        "\t}\n"
+        "}\n"
+    )
+    content = content.replace(alpha_grab_decl, ac26_extern_block + alpha_grab_decl, 1)
 
     old_set_prop = "RenderTexture_SetGlobalShaderProperty_m7BBA88435EDF79EBB5275B3CF84EBEC897EEAAAA(L_2, _stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, NULL);"
     new_set_prop = "Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16(_stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, L_2, NULL);"
     if old_set_prop in content:
         content = content.replace(old_set_prop, new_set_prop, 1)
 
-    # 2. Route UberPostProcess.OnRenderImage to DoPost instead of DoCompatibilityPost on iOS so full color grading,
-    #    nighttime curves, bloom, vignette, and UberAlphaBuffer are active!
+    # Gate motion blur in UberPostProcess_UpdateDirectionalBlur by g_OriDebug.motion_blur
+    old_mb_check = (
+        "\t\tbool L_0;\n"
+        "\t\tL_0 = UberPostProcess_get_DoMotionBlur_m611984FA0A564898FD6C57461A83201548A330B2(__this, NULL);\n"
+        "\t\tif (L_0)"
+    )
+    new_mb_check = (
+        "\t\tbool L_0;\n"
+        "\t\tL_0 = (g_OriDebug.motion_blur != 0) && UberPostProcess_get_DoMotionBlur_m611984FA0A564898FD6C57461A83201548A330B2(__this, NULL);\n"
+        "\t\tif (L_0)"
+    )
+    if "(g_OriDebug.motion_blur != 0) &&" not in content:
+        if old_mb_check not in content:
+            raise RuntimeError("Could not find DoMotionBlur check in UberPostProcess_UpdateDirectionalBlur (Assembly-CSharp__26.cpp)")
+        content = content.replace(old_mb_check, new_mb_check, 1)
+
+    # 2. Route UberPostProcess.OnRenderImage based on g_OriDebug.post_mode (0=DoCompatibilityPost, 1=DoPost, 2=Raw Blit)
+    #    with try/catch exception recovery!
     on_render_image_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberPostProcess_OnRenderImage_mD51A4F9A6598D5179C10BE516BE243B1EA51BA53"
     on_render_image_body = (
+        "\tstatic bool s_Il2CppMethodInitialized;\n"
+        "\tif (!s_Il2CppMethodInitialized)\n"
         "\t{\n"
-        "\t\tUberPostProcess_DoPost_m6A2D0C46B4E566F7496AC41A7502DA9E36305DD1(__this, ___0_source, ___1_destination, NULL);\n"
-        "\t\treturn;\n"
-        "\t}"
+        "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Graphics_t99CD970FFEA58171C70F54DF0C06D315BD452F2C_il2cpp_TypeInfo_var);\n"
+        "\t\ts_Il2CppMethodInitialized = true;\n"
+        "\t}\n"
+        "\ttry\n"
+        "\t{\n"
+        "\t\tif (g_OriDebug.post_mode == 0)\n"
+        "\t\t{\n"
+        "\t\t\tUberPostProcess_DoCompatibilityPost_m6900914609988B9805C421FA7DDAFFA8B3C083FB(__this, ___0_source, ___1_destination, NULL);\n"
+        "\t\t}\n"
+        "\t\telse if (g_OriDebug.post_mode == 2)\n"
+        "\t\t{\n"
+        "\t\t\til2cpp_codegen_runtime_class_init_inline(Graphics_t99CD970FFEA58171C70F54DF0C06D315BD452F2C_il2cpp_TypeInfo_var);\n"
+        "\t\t\tGraphics_Blit_m8D99E16B74C7D3C8F79F4F142C59DB6B38114504(___0_source, ___1_destination, NULL);\n"
+        "\t\t}\n"
+        "\t\telse\n"
+        "\t\t{\n"
+        "\t\t\tUberPostProcess_DoPost_m6A2D0C46B4E566F7496AC41A7502DA9E36305DD1(__this, ___0_source, ___1_destination, NULL);\n"
+        "\t\t}\n"
+        "\t}\n"
+        "\tcatch (Il2CppExceptionWrapper&)\n"
+        "\t{\n"
+        "\t\tg_OriDebug.exc_dopost++;\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(Graphics_t99CD970FFEA58171C70F54DF0C06D315BD452F2C_il2cpp_TypeInfo_var);\n"
+        "\t\tGraphics_Blit_m8D99E16B74C7D3C8F79F4F142C59DB6B38114504(___0_source, ___1_destination, NULL);\n"
+        "\t}\n"
+        "\treturn;"
     )
     content = replace_func_body(content, on_render_image_decl, on_render_image_body)
 
     # 3. In UberPostProcess.DoPost:
     #    - Initialize RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27_il2cpp_TypeInfo_var metadata
-    #    - Ensure __this->___PostTarget is allocated/resized to match ___0_source width/height (since OriPortManualPresenter
-    #      passes m_frame with dynamic resolution scaling)
-    #    - Null-check UberUIPostProcess.Instance before rendering its camera so scenes without UberUIPostProcess still execute
-    #      Pass 3 (final tone-mapping/contrast/brightness blit from PostTarget to destination)!
+    #    - Ensure __this->___PostTarget is allocated/resized to match ___0_source width/height
+    #    - Gate UberAlphaBuffer, Bloom/BlurPingPong, and RenderDistortions by g_OriDebug flags
+    #    - Null-check s_subCams elements and UberUIPostProcess.Instance!
     old_dopost_meta = "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&UberPostCacheIds_t9EBFAA44CA219ABF30A1382159A47EDE00B1FC26_il2cpp_TypeInfo_var);"
     new_dopost_meta = (
         "\t\til2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
@@ -1510,6 +2264,171 @@ def patch_assembly_csharp_26(cpp_dir: str) -> None:
         if old_il_003c not in content:
             raise RuntimeError("Could not find IL_003c in UberPostProcess_DoPost (Assembly-CSharp__26.cpp)")
         content = content.replace(old_il_003c, new_il_003c, 1)
+
+    old_alpha_buf = (
+        "\t\tUberAlphaBuffer_t556A54B07009C70BD46B22D94E06B3CA37D9DE64* L_8 = __this->___CurrentAlphaBuffer;\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_9 = ___0_source;\n"
+        "\t\tMaterial_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* L_10 = __this->___m_material;\n"
+        "\t\tNullCheck(L_8);\n"
+        "\t\tUberAlphaBuffer_OnRenderImage_m4FBEBF5BDF5842C0C895B09E10EE7BDF6F90FD25(L_8, L_9, L_10, NULL);\n"
+        "\t\tUberAlphaBuffer_t556A54B07009C70BD46B22D94E06B3CA37D9DE64* L_11 = __this->___CurrentAlphaBuffer;\n"
+        "\t\tNullCheck(L_11);\n"
+        "\t\tUberAlphaBuffer_SetCurrentAlphaGrab_m69077B2FA1A7F07E8B64E8E4FD884979B6F50E6C(L_11, NULL);"
+    )
+    new_alpha_buf = (
+        "\t\tif (g_OriDebug.alpha_grab_mode == 0 && __this->___CurrentAlphaBuffer != NULL)\n"
+        "\t\t{\n"
+        "\t\t\tUberAlphaBuffer_t556A54B07009C70BD46B22D94E06B3CA37D9DE64* L_8 = __this->___CurrentAlphaBuffer;\n"
+        "\t\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_9 = ___0_source;\n"
+        "\t\t\tMaterial_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* L_10 = __this->___m_material;\n"
+        "\t\t\tUberAlphaBuffer_OnRenderImage_m4FBEBF5BDF5842C0C895B09E10EE7BDF6F90FD25(L_8, L_9, L_10, NULL);\n"
+        "\t\t\tUberAlphaBuffer_SetCurrentAlphaGrab_m69077B2FA1A7F07E8B64E8E4FD884979B6F50E6C(L_8, NULL);\n"
+        "\t\t}\n"
+        "\t\telse\n"
+        "\t\t{\n"
+        "\t\t\tOriPort_ApplyAlphaGrabOverride();\n"
+        "\t\t}"
+    )
+    if "if (g_OriDebug.alpha_grab_mode == 0 && __this->___CurrentAlphaBuffer != NULL)" not in content:
+        if old_alpha_buf not in content:
+            raise RuntimeError("Could not find UberAlphaBuffer block in UberPostProcess_DoPost (Assembly-CSharp__26.cpp)")
+        content = content.replace(old_alpha_buf, new_alpha_buf, 1)
+
+    old_bloom_blur = (
+        "\t\tUberGaussianBlur_BlurPingPong_m09ED73A2799241F6D6FBB8FEE4A0B6355A245415(L_25, L_26, 2, L_27, NULL);"
+    )
+    new_bloom_blur = (
+        "\t\tif (g_OriDebug.bloom_blur != 0)\n"
+        "\t\t{\n"
+        "\t\t\tUberGaussianBlur_BlurPingPong_m09ED73A2799241F6D6FBB8FEE4A0B6355A245415(L_25, L_26, 2, L_27, NULL);\n"
+        "\t\t}"
+    )
+    if "if (g_OriDebug.bloom_blur != 0)" not in content:
+        if old_bloom_blur not in content:
+            raise RuntimeError("Could not find BlurPingPong block in UberPostProcess_DoPost (Assembly-CSharp__26.cpp)")
+        content = content.replace(old_bloom_blur, new_bloom_blur, 1)
+
+    old_distort = (
+        "\t\tUberPostProcess_RenderDistortions_m3BE2D6EAC0617F3D838E044B45E378BC59B03EE6(__this, L_36, NULL);\n"
+        "\t\tUberPostProcess_SetInterestZones_m5C65FA28BC9A7B8BDA282741083C04A9AA772908(__this, NULL);\n"
+        "\t\tMaterial_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* L_37 = __this->___m_material;\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(UberPostCacheIds_t9EBFAA44CA219ABF30A1382159A47EDE00B1FC26_il2cpp_TypeInfo_var);\n"
+        "\t\tint32_t L_38 = ((UberPostCacheIds_t9EBFAA44CA219ABF30A1382159A47EDE00B1FC26_StaticFields*)il2cpp_codegen_static_fields_for(UberPostCacheIds_t9EBFAA44CA219ABF30A1382159A47EDE00B1FC26_il2cpp_TypeInfo_var))->___ColorBuffer;\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_39 = V_1;\n"
+        "\t\tNullCheck(L_37);\n"
+        "\t\tMaterial_SetTexture_mA9F8461850AAB88F992E9C6FA6F24C2E050B83FD(L_37, L_38, L_39, NULL);\n"
+        "\t\tUberPostProcess_UpdateDirectionalBlur_mCEAB8032282C675F547E62E03AF9402F54B8D26C(__this, NULL);\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_40 = ___0_source;\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_41 = __this->___PostTarget;\n"
+        "\t\tMaterial_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* L_42 = __this->___m_material;\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(Graphics_t99CD970FFEA58171C70F54DF0C06D315BD452F2C_il2cpp_TypeInfo_var);\n"
+        "\t\tGraphics_Blit_m1875691D6AAA8CF8EDE8508538714CF895E36779(L_40, L_41, L_42, 0, NULL);\n"
+        "\t\tbool L_43 = __this->___m_doBlur;\n"
+        "\t\tif (!L_43)"
+    )
+    new_distort = (
+        "\t\tif (g_OriDebug.distortions != 0)\n"
+        "\t\t{\n"
+        "\t\t\tUberPostProcess_RenderDistortions_m3BE2D6EAC0617F3D838E044B45E378BC59B03EE6(__this, L_36, NULL);\n"
+        "\t\t}\n"
+        "\t\tUberPostProcess_SetInterestZones_m5C65FA28BC9A7B8BDA282741083C04A9AA772908(__this, NULL);\n"
+        "\t\tMaterial_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* L_37 = __this->___m_material;\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(UberPostCacheIds_t9EBFAA44CA219ABF30A1382159A47EDE00B1FC26_il2cpp_TypeInfo_var);\n"
+        "\t\tint32_t L_38 = ((UberPostCacheIds_t9EBFAA44CA219ABF30A1382159A47EDE00B1FC26_StaticFields*)il2cpp_codegen_static_fields_for(UberPostCacheIds_t9EBFAA44CA219ABF30A1382159A47EDE00B1FC26_il2cpp_TypeInfo_var))->___ColorBuffer;\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_39 = V_1;\n"
+        "\t\tNullCheck(L_37);\n"
+        "\t\tMaterial_SetTexture_mA9F8461850AAB88F992E9C6FA6F24C2E050B83FD(L_37, L_38, L_39, NULL);\n"
+        "\t\tUberPostProcess_UpdateDirectionalBlur_mCEAB8032282C675F547E62E03AF9402F54B8D26C(__this, NULL);\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_40 = ___0_source;\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_41 = __this->___PostTarget;\n"
+        "\t\tMaterial_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* L_42 = __this->___m_material;\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(Graphics_t99CD970FFEA58171C70F54DF0C06D315BD452F2C_il2cpp_TypeInfo_var);\n"
+        "\t\tGraphics_Blit_m1875691D6AAA8CF8EDE8508538714CF895E36779(L_40, L_41, L_42, 0, NULL);\n"
+        "\t\tbool L_43 = (g_OriDebug.bloom_blur != 0) && __this->___m_doBlur;\n"
+        "\t\tif (!L_43)"
+    )
+    if "if (g_OriDebug.distortions != 0)" not in content:
+        if old_distort not in content:
+            raise RuntimeError("Could not find RenderDistortions block in UberPostProcess_DoPost (Assembly-CSharp__26.cpp)")
+        content = content.replace(old_distort, new_distort, 1)
+
+    old_subcams = (
+        "IL_0175:\n"
+        "\t{\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var);\n"
+        "\t\tList_1_tFC105D2D316B9A77BBADFFAD681A162E1885BEEF* L_53 = ((UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_StaticFields*)il2cpp_codegen_static_fields_for(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var))->___s_subCams;\n"
+        "\t\tint32_t L_54 = V_5;\n"
+        "\t\tNullCheck(L_53);\n"
+        "\t\tUberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* L_55;\n"
+        "\t\tL_55 = List_1_get_Item_mC77DEE349AFB153411AF72E660D79EDC47687340(L_53, L_54, List_1_get_Item_mC77DEE349AFB153411AF72E660D79EDC47687340_RuntimeMethod_var);\n"
+        "\t\tNullCheck(L_55);\n"
+        "\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_56;\n"
+        "\t\tL_56 = Component_get_gameObject_m57AEFBB14DB39EC476F740BA000E170355DE691B(L_55, NULL);\n"
+        "\t\tNullCheck(L_56);\n"
+        "\t\tbool L_57;\n"
+        "\t\tL_57 = GameObject_get_activeInHierarchy_m49250F4F168DCC5388D5BE4F6A5681386907B109(L_56, NULL);\n"
+        "\t\tif (!L_57)\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_01e5;\n"
+        "\t\t}\n"
+        "\t}\n"
+        "\t{\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var);\n"
+        "\t\tList_1_tFC105D2D316B9A77BBADFFAD681A162E1885BEEF* L_58 = ((UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_StaticFields*)il2cpp_codegen_static_fields_for(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var))->___s_subCams;\n"
+        "\t\tint32_t L_59 = V_5;\n"
+        "\t\tNullCheck(L_58);\n"
+        "\t\tUberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* L_60;\n"
+        "\t\tL_60 = List_1_get_Item_mC77DEE349AFB153411AF72E660D79EDC47687340(L_58, L_59, List_1_get_Item_mC77DEE349AFB153411AF72E660D79EDC47687340_RuntimeMethod_var);\n"
+        "\t\tNullCheck(L_60);\n"
+        "\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_61 = L_60->___Camera;\n"
+        "\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_62 = L_61;\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_63 = __this->___PostTarget;\n"
+        "\t\tNullCheck(L_62);"
+    )
+    new_subcams = (
+        "IL_0175:\n"
+        "\t{\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var);\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\t\tList_1_tFC105D2D316B9A77BBADFFAD681A162E1885BEEF* L_53 = ((UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_StaticFields*)il2cpp_codegen_static_fields_for(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var))->___s_subCams;\n"
+        "\t\tif (L_53 == NULL) goto IL_01e5;\n"
+        "\t\tint32_t L_54 = V_5;\n"
+        "\t\tUberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* L_55 = List_1_get_Item_mC77DEE349AFB153411AF72E660D79EDC47687340(L_53, L_54, List_1_get_Item_mC77DEE349AFB153411AF72E660D79EDC47687340_RuntimeMethod_var);\n"
+        "\t\tif (L_55 == NULL || !Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)L_55, NULL)) goto IL_01e5;\n"
+        "\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* L_56 = Component_get_gameObject_m57AEFBB14DB39EC476F740BA000E170355DE691B(L_55, NULL);\n"
+        "\t\tif (L_56 == NULL || !GameObject_get_activeInHierarchy_m49250F4F168DCC5388D5BE4F6A5681386907B109(L_56, NULL))\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_01e5;\n"
+        "\t\t}\n"
+        "\t}\n"
+        "\t{\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var);\n"
+        "\t\tList_1_tFC105D2D316B9A77BBADFFAD681A162E1885BEEF* L_58 = ((UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_StaticFields*)il2cpp_codegen_static_fields_for(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var))->___s_subCams;\n"
+        "\t\tint32_t L_59 = V_5;\n"
+        "\t\tUberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* L_60 = List_1_get_Item_mC77DEE349AFB153411AF72E660D79EDC47687340(L_58, L_59, List_1_get_Item_mC77DEE349AFB153411AF72E660D79EDC47687340_RuntimeMethod_var);\n"
+        "\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_62 = (L_60 != NULL) ? L_60->___Camera : NULL;\n"
+        "\t\tif (L_62 == NULL || !Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)L_62, NULL)) goto IL_01e5;\n"
+        "\t\tRenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* L_63 = __this->___PostTarget;"
+    )
+    if "if (L_53 == NULL) goto IL_01e5;" not in content:
+        if old_subcams not in content:
+            raise RuntimeError("Could not find IL_0175 s_subCams block in UberPostProcess_DoPost (Assembly-CSharp__26.cpp)")
+        content = content.replace(old_subcams, new_subcams, 1)
+
+    old_subcams_end = (
+        "\t\tList_1_tFC105D2D316B9A77BBADFFAD681A162E1885BEEF* L_73 = ((UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_StaticFields*)il2cpp_codegen_static_fields_for(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var))->___s_subCams;\n"
+        "\t\tNullCheck(L_73);\n"
+        "\t\tint32_t L_74;\n"
+        "\t\tL_74 = List_1_get_Count_m46D4ED562258FC34C735632E1312C5E45B64FF43_inline(L_73, List_1_get_Count_m46D4ED562258FC34C735632E1312C5E45B64FF43_RuntimeMethod_var);"
+    )
+    new_subcams_end = (
+        "\t\tList_1_tFC105D2D316B9A77BBADFFAD681A162E1885BEEF* L_73 = ((UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_StaticFields*)il2cpp_codegen_static_fields_for(UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC_il2cpp_TypeInfo_var))->___s_subCams;\n"
+        "\t\tint32_t L_74 = (L_73 != NULL) ? List_1_get_Count_m46D4ED562258FC34C735632E1312C5E45B64FF43_inline(L_73, List_1_get_Count_m46D4ED562258FC34C735632E1312C5E45B64FF43_RuntimeMethod_var) : 0;"
+    )
+    if "(L_73 != NULL) ?" not in content:
+        if old_subcams_end not in content:
+            raise RuntimeError("Could not find IL_01eb s_subCams Count block in UberPostProcess_DoPost (Assembly-CSharp__26.cpp)")
+        content = content.replace(old_subcams_end, new_subcams_end, 1)
 
     old_ui_post = (
         "\t\tUberUIPostProcess_t57A61E7D95BF15C08A41B787A92895687CC9BE4C* L_75;\n"
