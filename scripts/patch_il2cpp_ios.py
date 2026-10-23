@@ -761,6 +761,7 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Time_set_fixedDeltaTime_m8D8417B234CFF76
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Time_set_timeScale_mEF84EE4B2376A458387648079B426B267862D331 (float ___0_value, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Input_GetMouseButtonDown_m8DFC792D15FFF15D311614D5CC6C5D055E5A1DE3 (int32_t ___0_button, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2 (int32_t ___0_key, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void OriPortManualPresenter_UpdateAlphaGrab_m6D5C8A797031A3CAABF1F73E449DA1A147570CEF (OriPortManualPresenter_t2F5F855B4DF012477351066DD463FB5872874118* __this, int32_t ___0_width, int32_t ___1_height, const RuntimeMethod* method);
 IL2CPP_EXTERN_C void OriPort_UpdateTurbulenceGlobals();
 IL2CPP_EXTERN_C void OriPort_DumpCameraState(void* fpVoid);
 IL2CPP_EXTERN_C void OriPort_DumpPostProcessState(void* fpVoid);
@@ -781,9 +782,9 @@ IL2CPP_EXTERN_C void OriPort_StrToUtf8(String_t* str, char* buf, int maxLen)
 \tif (buf == NULL || maxLen <= 0) return;
 \tbuf[0] = '\\0';
 \tif (str == NULL) return;
-\tint32_t len = str->___m_stringLength;
+\tint32_t len = str->____stringLength;
 \tif (len <= 0) return;
-\tconst Il2CppChar* chars = &str->___m_firstChar;
+\tconst Il2CppChar* chars = &str->____firstChar;
 \tint outIdx = 0;
 \tfor (int32_t i = 0; i < len && outIdx < maxLen - 1; i++)
 \t{
