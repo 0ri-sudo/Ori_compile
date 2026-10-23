@@ -2087,11 +2087,17 @@ def patch_assembly_csharp_26(cpp_dir: str) -> None:
 
     # 1. Fix UberAlphaBuffer.SetCurrentAlphaGrab to use Shader.SetGlobalTexture("_AlphaGrabTex", m_alphaBuffer)
     #    and export OriPort_DumpPostProcessState + g_OriDebug externs.
-    alpha_grab_decl = "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberAlphaBuffer_SetCurrentAlphaGrab_m69077B2FA1A7F07E8B64E8E4FD884979B6F50E6C"
+    alpha_grab_def = (
+        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberAlphaBuffer_SetCurrentAlphaGrab_m69077B2FA1A7F07E8B64E8E4FD884979B6F50E6C "
+        "(UberAlphaBuffer_t556A54B07009C70BD46B22D94E06B3CA37D9DE64* __this, const RuntimeMethod* method) \n{"
+    )
+    if alpha_grab_def not in content:
+        alpha_grab_def = (
+            "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberAlphaBuffer_SetCurrentAlphaGrab_m69077B2FA1A7F07E8B64E8E4FD884979B6F50E6C "
+            "(UberAlphaBuffer_t556A54B07009C70BD46B22D94E06B3CA37D9DE64* __this, const RuntimeMethod* method)\n{"
+        )
     old_ext_idx = content.find("#include <stdio.h>\nstruct OriPortDebugConfig")
-    if old_ext_idx == -1:
-        old_ext_idx = content.find("IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16")
-    ag_idx = content.find(alpha_grab_decl)
+    ag_idx = content.find(alpha_grab_def)
     if old_ext_idx != -1 and ag_idx != -1 and old_ext_idx < ag_idx:
         content = content[:old_ext_idx] + content[ag_idx:]
 
@@ -2105,12 +2111,6 @@ def patch_assembly_csharp_26(cpp_dir: str) -> None:
         "};\n"
         "extern OriPortDebugConfig g_OriDebug;\n"
         "IL2CPP_EXTERN_C void OriPort_ApplyAlphaGrabOverride();\n"
-        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16 (String_t* ___0_name, Texture_t791CBB51219779964E0E8A2ED7C1AA5F2C395CDC3DF16_dummy* ___1_value, const RuntimeMethod* method);\n"
-    ).replace("Texture_t791CBB51219779964E0E8A2ED7C1AA5F2C395CDC3DF16_dummy", "Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700")
-    ac26_extern_block += (
-        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void UberPostProcess_DoCompatibilityPost_m6900914609988B9805C421FA7DDAFFA8B3C083FB (UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* __this, RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* ___0_source, RenderTexture_tBA90C4C3AD9EECCFDDCC632D97C29FAB80D60D27* ___1_destination, const RuntimeMethod* method);\n"
-        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool UberPostProcess_get_DoMotionBlur_m611984FA0A564898FD6C57461A83201548A330B2 (UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* __this, const RuntimeMethod* method);\n"
-        "IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Vector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 UberPostProcess_get_Speed_mF6F89A4BCD435E117D3A73DE74859E15432350DE_inline (UberPostProcess_t4FB6B8834D1576B2D9DE80137E588F45AA9D1CCC* __this, const RuntimeMethod* method);\n"
         "IL2CPP_EXTERN_C void OriPort_DumpPostProcessState(void* fpVoid)\n"
         "{\n"
         "\tFILE* fp = (FILE*)fpVoid;\n"
@@ -2135,7 +2135,7 @@ def patch_assembly_csharp_26(cpp_dir: str) -> None:
         "\t\t\treturn;\n"
         "\t\t}\n"
         "\t\tbool doMB = UberPostProcess_get_DoMotionBlur_m611984FA0A564898FD6C57461A83201548A330B2(inst, NULL);\n"
-        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 spd = UberPostProcess_get_Speed_mF6F89A4BCD435E117D3A73DE74859E15432350DE_inline(inst, NULL);\n"
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 spd = inst->___U3CSpeedU3Ek__BackingField;\n"
         "\t\tint32_t ptW = 0, ptH = 0, abW = 0, abH = 0, subCount = 0;\n"
         "\t\tif (inst->___PostTarget != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)inst->___PostTarget, NULL))\n"
         "\t\t{\n"
@@ -2162,7 +2162,7 @@ def patch_assembly_csharp_26(cpp_dir: str) -> None:
         "\t}\n"
         "}\n"
     )
-    content = content.replace(alpha_grab_decl, ac26_extern_block + alpha_grab_decl, 1)
+    content = content.replace(alpha_grab_def, ac26_extern_block + alpha_grab_def, 1)
 
     old_set_prop = "RenderTexture_SetGlobalShaderProperty_m7BBA88435EDF79EBB5275B3CF84EBEC897EEAAAA(L_2, _stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, NULL);"
     new_set_prop = "Shader_SetGlobalTexture_m9ECF95F30982225B918E7521B5F2C395CDC3DF16(_stringLiteral38EC5582E0AA27A2D5C239FE57D3F7595653A003, L_2, NULL);"
