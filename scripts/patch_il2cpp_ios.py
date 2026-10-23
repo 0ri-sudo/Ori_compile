@@ -440,8 +440,9 @@ IL2CPP_EXTERN_C void OriPort_DumpCameraState(void* fpVoid)
 \t\t\tfprintf(fp, "GameplayCamera: NULL\\n\\n");
 \t\t\treturn;
 \t\t}
-\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 camPos = cam->___Position;
-\t\tfprintf(fp, "GameplayCamera.Position: (%.3f, %.3f, %.3f)\\n", camPos.___x, camPos.___y, camPos.___z);
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 camPos = (cam->___Transform != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)cam->___Transform, NULL)) ? Transform_get_position_m69CD5FA214FDAE7BB701552943674846C220FDE1(cam->___Transform, NULL) : cam->___CameraPositionForSampling;
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 sampPos = cam->___CameraPositionForSampling;
+\t\tfprintf(fp, "GameplayCamera.Position: (%.3f, %.3f, %.3f) | SamplingPos: (%.3f, %.3f, %.3f)\\n", camPos.___x, camPos.___y, camPos.___z, sampPos.___x, sampPos.___y, sampPos.___z);
 \t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* target = GameplayCamera_get_Target_mB590E93626C28F1E1C40BA4A66D970851B571A03(cam, NULL);
 \t\tif (target != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)target, NULL))
 \t\t{
