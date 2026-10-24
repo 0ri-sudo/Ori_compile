@@ -442,7 +442,8 @@ IL2CPP_EXTERN_C void OriPort_DumpCameraState(void* fpVoid)
 \t\t}
 \t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 camPos = (cam->___Transform != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)cam->___Transform, NULL)) ? Transform_get_position_m69CD5FA214FDAE7BB701552943674846C220FDE1(cam->___Transform, NULL) : cam->___CameraPositionForSampling;
 \t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 sampPos = cam->___CameraPositionForSampling;
-\t\tfprintf(fp, "GameplayCamera.Position: (%.3f, %.3f, %.3f) | SamplingPos: (%.3f, %.3f, %.3f)\\n", camPos.___x, camPos.___y, camPos.___z, sampPos.___x, sampPos.___y, sampPos.___z);
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 thPos = cam->___TargetHelperPosition;
+\t\tfprintf(fp, "GameplayCamera.Position: (%.3f, %.3f, %.3f) | SamplingPos: (%.3f, %.3f, %.3f) | TargetHelperPos: (%.3f, %.3f, %.3f)\\n", camPos.___x, camPos.___y, camPos.___z, sampPos.___x, sampPos.___y, sampPos.___z, thPos.___x, thPos.___y, thPos.___z);
 \t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* target = GameplayCamera_get_Target_mB590E93626C28F1E1C40BA4A66D970851B571A03(cam, NULL);
 \t\tif (target != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)target, NULL))
 \t\t{
@@ -494,9 +495,99 @@ IL2CPP_EXTERN_C void OriPort_DumpCameraState(void* fpVoid)
             block_start = after_ongamereset + len("return;\n\t}\n}\n")
             content = content[:block_start] + snap_helper + content[reset_idx:]
 
+    # 3. Fix CameraTarget.UpdateTargetPosition so that when no TargetLayer has a valid Transform
+    #    (e.g. Title Screen where Ori is destroyed and GameplayCamera.Target == NULL) or when a
+    #    CinematicPuppet is active (Tween > 0.01f), TargetPosition and CameraPositionForSampling
+    #    use the active camera / puppet world position instead of getting stuck at (0, 0, 0)!
+    #    This fixes BOTH Title Screen color grading/fog AND Title Screen wind/leaf animation
+    #    (TurbulenceManager) as well as cutscene camera sampling!
+    old_utp_vars = """\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 V_3;
+\tmemset((&V_3), 0, sizeof(V_3));
+\t{"""
+    new_utp_vars = """\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 V_3;
+\tmemset((&V_3), 0, sizeof(V_3));
+\tbool anyValidLayer = false;
+\t{"""
+    if "bool anyValidLayer = false;" not in content:
+        if old_utp_vars not in content:
+            raise RuntimeError("Could not find V_3 init in CameraTarget_UpdateTargetPosition (Assembly-CSharp__3.cpp)")
+        content = content.replace(old_utp_vars, new_utp_vars, 1)
+
+    old_utp_valid = """\t\tif (!L_7)
+\t\t{
+\t\t\tgoto IL_00c2;
+\t\t}
+\t}"""
+    new_utp_valid = """\t\tif (!L_7)
+\t\t{
+\t\t\tgoto IL_00c2;
+\t\t}
+\t\tanyValidLayer = true;
+\t}"""
+    if "anyValidLayer = true;" not in content:
+        if old_utp_valid not in content:
+            raise RuntimeError("Could not find L_7 check in CameraTarget_UpdateTargetPosition (Assembly-CSharp__3.cpp)")
+        content = content.replace(old_utp_valid, new_utp_valid, 1)
+
+    old_utp_end = """\t{
+\t\tGameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* L_45 = __this->___GameplayCamera;
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_46 = V_0;
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_47 = L_46;
+\t\tV_3 = L_47;
+\t\t__this->___TargetPosition = L_47;
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_48 = V_3;
+\t\tNullCheck(L_45);
+\t\tL_45->___CameraPositionForSampling = L_48;
+\t\treturn;
+\t}"""
+    new_utp_end = """\t{
+\t\tGameplayCamera_t0939DE616725B1ED6EEBFB571FAFFE64C578EF00* L_45 = __this->___GameplayCamera;
+\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);
+\t\tif (L_45 != NULL)
+\t\t{
+\t\t\tCameraController_tDC4FF0FA10418272A26E5E7539156F4F4A98E8C5* ctrl = L_45->___Controller;
+\t\t\tCameraPuppetController_tE58C8D776D2A6D6F92B40603A306EB81D2509F10* pc = (ctrl != NULL) ? ctrl->___PuppetController : NULL;
+\t\t\tif (pc != NULL && pc->___Tween > 0.01f && pc->___CinematicPuppet != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)pc->___CinematicPuppet, NULL))
+\t\t\t{
+\t\t\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* pupTr = (pc->___m_transform != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)pc->___m_transform, NULL)) ? pc->___m_transform : pc->___CinematicPuppet;
+\t\t\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 pPos = Transform_get_position_m69CD5FA214FDAE7BB701552943674846C220FDE1(pupTr, NULL);
+\t\t\t\tV_0.___x = pPos.___x;
+\t\t\t\tV_0.___y = pPos.___y;
+\t\t\t\tV_0.___z = 0.0f;
+\t\t\t}
+\t\t\telse if (!anyValidLayer && V_0.___x == 0.0f && V_0.___y == 0.0f)
+\t\t\t{
+\t\t\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* camTr = L_45->___Transform;
+\t\t\t\tif (camTr == NULL || !Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)camTr, NULL))
+\t\t\t\t{
+\t\t\t\t\tcamTr = (pc != NULL) ? pc->___m_transform : NULL;
+\t\t\t\t}
+\t\t\t\tif (camTr != NULL && Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)camTr, NULL))
+\t\t\t\t{
+\t\t\t\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 cPos = Transform_get_position_m69CD5FA214FDAE7BB701552943674846C220FDE1(camTr, NULL);
+\t\t\t\t\tV_0.___x = cPos.___x;
+\t\t\t\t\tV_0.___y = cPos.___y;
+\t\t\t\t\tV_0.___z = 0.0f;
+\t\t\t\t}
+\t\t\t}
+\t\t}
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_46 = V_0;
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_47 = L_46;
+\t\tV_3 = L_47;
+\t\t__this->___TargetPosition = L_47;
+\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_48 = V_3;
+\t\tNullCheck(L_45);
+\t\tL_45->___CameraPositionForSampling = L_48;
+\t\treturn;
+\t}"""
+    if "pc != NULL && pc->___Tween > 0.01f" not in content:
+        if old_utp_end not in content:
+            raise RuntimeError("Could not find final assignment in CameraTarget_UpdateTargetPosition (Assembly-CSharp__3.cpp)")
+        content = content.replace(old_utp_end, new_utp_end, 1)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
-    print("[OK] Patched Assembly-CSharp__3.cpp (CameraPuppetController.Reset preserve CinematicPuppet + OriPort_SnapCameraToCurrentCharacter cutscene guard)")
+    print("[OK] Patched Assembly-CSharp__3.cpp (CameraPuppetController.Reset preserve CinematicPuppet + CameraTarget.UpdateTargetPosition title screen & cutscene sampling fix)")
 
 
 def patch_assembly_csharp_10(cpp_dir: str) -> None:
@@ -660,25 +751,29 @@ IL_0019:
 
     # 4. Prevent LegacyMaterialTransparencyAnimator and LegacyTransparancyAnimator from caching 0.0f
     #    as m_originalValue / m_originalAlphas when a material starts at t=0 of a fade-in curve.
-    dbg_cfg_decl_11 = (
+    old_dbg_cfg_11 = (
         "struct OriPortDebugConfig { int32_t show_debug_btn; int32_t post_mode; int32_t motion_blur; int32_t bloom_blur; int32_t distortions; int32_t alpha_grab_mode; int32_t sanitizer_mode; float trans_alpha_default; int32_t turbulence_manual; int32_t fixed_hz; float time_scale; int32_t dump_now; int32_t panel_open; int32_t render_frame_exceptions; int32_t do_post_exceptions; int32_t dump_count; };\n"
         "IL2CPP_EXTERN_C OriPortDebugConfig g_OriDebug;\n"
     )
-    if "IL2CPP_EXTERN_C OriPortDebugConfig g_OriDebug;" not in content:
-        content = content.replace(inst_decl, dbg_cfg_decl_11 + inst_decl, 1)
+    if old_dbg_cfg_11 in content:
+        content = content.replace(old_dbg_cfg_11, "extern float g_OriDefaultTransAlpha;\n", 1)
+    elif "extern float g_OriDefaultTransAlpha;" not in content:
+        content = content.replace(inst_decl, "extern float g_OriDefaultTransAlpha;\n" + inst_decl, 1)
 
-    content = content.replace("if (L_7 <= 0.001f) { L_7 = 0.5f; }", "if (L_7 <= 0.001f) { L_7 = g_OriDebug.trans_alpha_default; }")
+    content = content.replace("if (L_7 <= 0.001f) { L_7 = 0.5f; }", "if (L_7 <= 0.001f) { L_7 = g_OriDefaultTransAlpha; }")
+    content = content.replace("if (L_7 <= 0.001f) { L_7 = g_OriDebug.trans_alpha_default; }", "if (L_7 <= 0.001f) { L_7 = g_OriDefaultTransAlpha; }")
     old_legacy_mat_alpha = "\t\tfloat L_7 = L_6.___a;\n\t\t__this->___m_originalValue = L_7;"
-    new_legacy_mat_alpha = "\t\tfloat L_7 = L_6.___a;\n\t\tif (L_7 <= 0.001f) { L_7 = g_OriDebug.trans_alpha_default; }\n\t\t__this->___m_originalValue = L_7;"
-    if "if (L_7 <= 0.001f) { L_7 = g_OriDebug.trans_alpha_default; }" not in content:
+    new_legacy_mat_alpha = "\t\tfloat L_7 = L_6.___a;\n\t\tif (L_7 <= 0.001f) { L_7 = g_OriDefaultTransAlpha; }\n\t\t__this->___m_originalValue = L_7;"
+    if "if (L_7 <= 0.001f) { L_7 = g_OriDefaultTransAlpha; }" not in content:
         if old_legacy_mat_alpha not in content:
             raise RuntimeError("Could not find L_7 assignment in LegacyMaterialTransparencyAnimator_Start")
         content = content.replace(old_legacy_mat_alpha, new_legacy_mat_alpha, 1)
 
-    content = content.replace("if (L_45 <= 0.001f) { L_45 = 0.5f; }", "if (L_45 <= 0.001f) { L_45 = g_OriDebug.trans_alpha_default; }")
+    content = content.replace("if (L_45 <= 0.001f) { L_45 = 0.5f; }", "if (L_45 <= 0.001f) { L_45 = g_OriDefaultTransAlpha; }")
+    content = content.replace("if (L_45 <= 0.001f) { L_45 = g_OriDebug.trans_alpha_default; }", "if (L_45 <= 0.001f) { L_45 = g_OriDefaultTransAlpha; }")
     old_legacy_trans_alpha = "\t\tfloat L_45 = ((L_43)->GetAddressAt(static_cast<il2cpp_array_size_t>(L_44)))->___a;\n\t\tNullCheck(L_41);\n\t\t(L_41)->SetAt(static_cast<il2cpp_array_size_t>(L_42), (float)L_45);"
-    new_legacy_trans_alpha = "\t\tfloat L_45 = ((L_43)->GetAddressAt(static_cast<il2cpp_array_size_t>(L_44)))->___a;\n\t\tif (L_45 <= 0.001f) { L_45 = g_OriDebug.trans_alpha_default; }\n\t\tNullCheck(L_41);\n\t\t(L_41)->SetAt(static_cast<il2cpp_array_size_t>(L_42), (float)L_45);"
-    if "if (L_45 <= 0.001f) { L_45 = g_OriDebug.trans_alpha_default; }" not in content:
+    new_legacy_trans_alpha = "\t\tfloat L_45 = ((L_43)->GetAddressAt(static_cast<il2cpp_array_size_t>(L_44)))->___a;\n\t\tif (L_45 <= 0.001f) { L_45 = g_OriDefaultTransAlpha; }\n\t\tNullCheck(L_41);\n\t\t(L_41)->SetAt(static_cast<il2cpp_array_size_t>(L_42), (float)L_45);"
+    if "if (L_45 <= 0.001f) { L_45 = g_OriDefaultTransAlpha; }" not in content:
         if old_legacy_trans_alpha not in content:
             raise RuntimeError("Could not find L_45 assignment in LegacyTransparancyAnimator_CacheShaderInformation")
         content = content.replace(old_legacy_trans_alpha, new_legacy_trans_alpha, 1)
@@ -894,8 +989,42 @@ static void OriPort_LoadOrSyncConfig()
 \t\telse if (strcmp(key, "dump_now") == 0) g_OriDebug.dump_now = atoi(val);
 \t}
 \tfclose(fp);
+\tif (g_OriDebug.post_mode < 0 || g_OriDebug.post_mode > 2) g_OriDebug.post_mode = 1;
+\tif (g_OriDebug.alpha_grab_mode < 0 || g_OriDebug.alpha_grab_mode > 3) g_OriDebug.alpha_grab_mode = 0;
+\tif (g_OriDebug.sanitize_mode < 0 || g_OriDebug.sanitize_mode > 2) g_OriDebug.sanitize_mode = 1;
+\tif (g_OriDefaultTransAlpha < 0.0f || g_OriDefaultTransAlpha > 1.0f) { g_OriDefaultTransAlpha = 0.5f; g_OriDebug.orig_alpha = 0.5f; }
 \tif (g_OriDebug.sanitize_mode != oldSan) g_OriDebug.force_resanitize = 1;
 \tOriPort_ApplyTimeSettings();
+}
+
+struct OriPortReplacedShaderEntry { uintptr_t matPtr; char origName[80]; };
+static OriPortReplacedShaderEntry s_replacedShaders[512];
+static int32_t s_replacedShaderCount = 0;
+
+static void OriPort_RecordOriginalShader(Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* mat, String_t* shName)
+{
+\tif (mat == NULL || shName == NULL) return;
+\tuintptr_t ptr = (uintptr_t)mat;
+\tfor (int32_t k = 0; k < s_replacedShaderCount; k++)
+\t{
+\t\tif (s_replacedShaders[k].matPtr == ptr) return;
+\t}
+\tif (s_replacedShaderCount < 512)
+\t{
+\t\ts_replacedShaders[s_replacedShaderCount].matPtr = ptr;
+\t\tOriPort_StrToUtf8(shName, s_replacedShaders[s_replacedShaderCount].origName, 80);
+\t\ts_replacedShaderCount++;
+\t}
+}
+
+static const char* OriPort_LookupOriginalShader(Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* mat)
+{
+\tuintptr_t ptr = (uintptr_t)mat;
+\tfor (int32_t k = 0; k < s_replacedShaderCount; k++)
+\t{
+\t\tif (s_replacedShaders[k].matPtr == ptr) return s_replacedShaders[k].origName;
+\t}
+\treturn NULL;
 }
 
 IL2CPP_EXTERN_C void OriPort_ApplyAlphaGrabOverride()
@@ -1046,6 +1175,7 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\t\t\t}
 \t\t\t\t\t\tif (isText && textShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(textShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
 \t\t\t\t\t\t{
+\t\t\t\t\t\t\tOriPort_RecordOriginalShader(mat, shName);
 \t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, textShader, NULL);
 \t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
 \t\t\t\t\t\t}
@@ -1053,6 +1183,7 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\t\t\t{
 \t\t\t\t\t\t\tif (fallbackShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(fallbackShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
 \t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\tOriPort_RecordOriginalShader(mat, shName);
 \t\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, fallbackShader, NULL);
 \t\t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
 \t\t\t\t\t\t\t}
@@ -1144,10 +1275,14 @@ static void OriPort_DumpInspectorLog()
 \t\t\t\t\tMaterial_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* mat = mats->GetAt(static_cast<il2cpp_array_size_t>(j));
 \t\t\t\t\tif (mat == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(mat, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL)) continue;
 \t\t\t\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* sh = Material_get_shader_m8B0C11AE6F2AD7DE30AF52D3195EB716F7A71983(mat, NULL);
-\t\t\t\t\tchar shName[128] = "<null>";
+\t\t\t\t\tchar shName[192] = "<null>";
 \t\t\t\t\tif (sh != NULL && !Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(sh, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
 \t\t\t\t\t{
-\t\t\t\t\t\tOriPort_StrToUtf8(Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392(sh, NULL), shName, sizeof(shName));
+\t\t\t\t\t\tchar curSh[96] = {0};
+\t\t\t\t\t\tOriPort_StrToUtf8(Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392(sh, NULL), curSh, sizeof(curSh));
+\t\t\t\t\t\tconst char* origSh = OriPort_LookupOriginalShader(mat);
+\t\t\t\t\t\tif (origSh != NULL) snprintf(shName, sizeof(shName), "%s (orig:%s)", curSh, origSh);
+\t\t\t\t\t\telse snprintf(shName, sizeof(shName), "%s", curSh);
 \t\t\t\t\t}
 \t\t\t\t\tint32_t rq = Material_get_renderQueue_mC427C54D2667620CBB845559DA4DA31BE166C757(mat, NULL);
 \t\t\t\t\tfloat dfx = -999.0f;
@@ -1230,8 +1365,10 @@ static void OriPort_DrawDebugOverlay()
 \t\tGUIStyle_set_fontSize_m7F6DFD61AC55072C95DC3825B77FAE3F75F1CCFF(s_lblStyle, (int32_t)(16.0f * scale), NULL);
 
 \t\tstatic int32_t s_lastTapFrame = -10;
+\t\tstatic int32_t s_selIdx = 0;
 \t\tint32_t curFrame = Time_get_frameCount_m4A42E558A71301A216BDC49EC402D62F19C79667(NULL);
 \t\tbool tapped = false;
+\t\tbool gpActivate = false;
 \t\tfloat tapX = -1.0f, tapY = -1.0f;
 \t\tif (curFrame != s_lastTapFrame)
 \t\t{
@@ -1257,10 +1394,17 @@ static void OriPort_DrawDebugOverlay()
 \t\t\t\ttapped = true;
 \t\t\t\ts_lastTapFrame = curFrame;
 \t\t\t}
-\t\t\tif (Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(356, NULL) || Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(358, NULL))
+\t\t\tif (Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(348, NULL) || Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(349, NULL))
 \t\t\t{
 \t\t\t\tg_OriDebug.panel_open = !g_OriDebug.panel_open;
 \t\t\t\ts_lastTapFrame = curFrame;
+\t\t\t}
+\t\t\telse if (g_OriDebug.panel_open)
+\t\t\t{
+\t\t\t\tif (Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(334, NULL)) { s_selIdx = (s_selIdx + 8) % 10; s_lastTapFrame = curFrame; }
+\t\t\t\telse if (Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(336, NULL)) { s_selIdx = (s_selIdx + 2) % 10; s_lastTapFrame = curFrame; }
+\t\t\t\telse if (Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(337, NULL) || Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(335, NULL)) { s_selIdx ^= 1; s_lastTapFrame = curFrame; }
+\t\t\t\telse if (Input_GetKeyDown_mB237DEA6244132670D38990BAB77D813FBB028D2(344, NULL)) { gpActivate = true; s_lastTapFrame = curFrame; }
 \t\t\t}
 \t\t}
 
@@ -1268,7 +1412,7 @@ static void OriPort_DrawDebugOverlay()
 \t\tMatrix4x4_tDB70CF134A14BA38190C59AA700BCE10E2AED3E6 oldMat = GUI_get_matrix_m3CA02DED0598EE32BD9E66CA533A78EFB0A246FC(NULL);
 \t\tGUI_set_matrix_m7759FEC96FBCB97E02B1BA44D2EC1B3FEEFA257F(Matrix4x4_get_identity_m6568A73831F3E2D587420D20FF423959D7D8AB56_inline(NULL), NULL);
 
-\t\tfloat bx = 24.0f * scale, by = 16.0f * scale, bw = 82.0f * scale, bh = 36.0f * scale;
+\t\tfloat bx = 48.0f * scale, by = 18.0f * scale, bw = 86.0f * scale, bh = 38.0f * scale;
 \t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D dbgRect = { bx, by, bw, bh };
 \t\tif (tapped && tapX >= bx && tapX <= bx + bw && tapY >= by && tapY <= by + bh)
 \t\t{
@@ -1322,9 +1466,12 @@ static void OriPort_DrawDebugOverlay()
 \t\t\t\tfloat rx = px + 8.0f * scale + col * (cw + 8.0f * scale);
 \t\t\t\tfloat ry = py + 36.0f * scale + row * (ch + 6.0f * scale);
 \t\t\t\tRect_tA04E0F8A1830E767F40FB27ECD8D309303571F0D r = { rx, ry, cw, ch };
-\t\t\t\tif (tapped && tapX >= rx && tapX <= rx + cw && tapY >= ry && tapY <= ry + ch)
+\t\t\t\tbool hitCell = (tapped && tapX >= rx && tapX <= rx + cw && tapY >= ry && tapY <= ry + ch) || (gpActivate && idx == s_selIdx);
+\t\t\t\tif (hitCell)
 \t\t\t\t{
+\t\t\t\t\ts_selIdx = idx;
 \t\t\t\t\ttapped = false;
+\t\t\t\t\tgpActivate = false;
 \t\t\t\t\tchanged = true;
 \t\t\t\t\tif (idx == 0) g_OriDebug.post_mode = (g_OriDebug.post_mode + 1) % 3;
 \t\t\t\t\telse if (idx == 1) g_OriDebug.motion_blur = !g_OriDebug.motion_blur;
@@ -1344,9 +1491,11 @@ static void OriPort_DrawDebugOverlay()
 \t\t\t\t\t}
 \t\t\t\t\telse if (idx == 9) g_OriDebug.dump_now = 1;
 \t\t\t\t}
-\t\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F cellBg = (idx == 9)
-\t\t\t\t\t? Color_tD001788D726C3A7F1379BEED0260B9591F440C1F{ 0.15f, 0.45f, 0.20f, 0.92f }
-\t\t\t\t\t: Color_tD001788D726C3A7F1379BEED0260B9591F440C1F{ 0.18f, 0.24f, 0.36f, 0.92f };
+\t\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F cellBg = (idx == s_selIdx)
+\t\t\t\t\t? Color_tD001788D726C3A7F1379BEED0260B9591F440C1F{ 0.32f, 0.48f, 0.72f, 0.95f }
+\t\t\t\t\t: ((idx == 9)
+\t\t\t\t\t\t? Color_tD001788D726C3A7F1379BEED0260B9591F440C1F{ 0.15f, 0.45f, 0.20f, 0.92f }
+\t\t\t\t\t\t: Color_tD001788D726C3A7F1379BEED0260B9591F440C1F{ 0.18f, 0.24f, 0.36f, 0.92f });
 \t\t\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(cellBg, NULL);
 \t\t\t\tGUI_DrawTexture_m05F173ECE6F2D78FFBDEB0052EB58AC2B5A7420E(r, (Texture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700*)s_whiteTex, 0, (bool)1, NULL);
 \t\t\t\tGUI_set_color_mA44927D3F2ACB1E228815F10042A6F62B7645648(Color_get_white_m068F5AF879B0FCA584E3693F762EA41BB65532C6_inline(NULL), NULL);
@@ -2076,9 +2225,68 @@ def patch_assembly_csharp_25(cpp_dir: str) -> None:
         raise RuntimeError("Could not find TurbulenceManager_OnRenderObject in Assembly-CSharp__25.cpp")
     content = content.replace(turb_target, turb_helper + turb_target, 1)
 
+    # 3. In TurbulenceManager.UpdateShaderGlobalsForManualRender, fallback to CameraPositionForSampling
+    #    if TargetHelperPosition is (0, 0, 0) so title screen / cutscene wind settings are always sampled!
+    old_turb_pos = "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_16 = L_15->___TargetHelperPosition;"
+    new_turb_pos = (
+        "\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_16 = L_15->___TargetHelperPosition;\n"
+        "\t\tif (L_16.___x == 0.0f && L_16.___y == 0.0f) { L_16 = L_15->___CameraPositionForSampling; }"
+    )
+    if "if (L_16.___x == 0.0f && L_16.___y == 0.0f)" not in content:
+        if old_turb_pos not in content:
+            raise RuntimeError("Could not find L_15->___TargetHelperPosition in Assembly-CSharp__25.cpp")
+        content = content.replace(old_turb_pos, new_turb_pos, 1)
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
     print("[OK] Patched Assembly-CSharp__25.cpp (TransparencyAnimator+RendererData OriginalAlpha fix + TurbulenceManager manual render globals)")
+
+
+def patch_assembly_csharp_18(cpp_dir: str) -> None:
+    path = os.path.join(cpp_dir, "Assembly-CSharp__18.cpp")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # In ScenesManager.UpdatePosition, when GameplayCamera.Target is NULL (e.g. Title Screen or Cutscene),
+    # still call CameraTarget.UpdateTargetPosition and update CurrentCameraTargetPosition so SceneManager
+    # and SceneDefaultSettingsHelper sample the active scene at the camera's actual position instead of (0,0,0)!
+    old_sm_target = (
+        "\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* L_19;\n"
+        "\t\tL_19 = GameplayCamera_get_Target_mB590E93626C28F1E1C40BA4A66D970851B571A03(L_18, NULL);\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\t\tbool L_20;\n"
+        "\t\tL_20 = Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A(L_19, NULL);\n"
+        "\t\tif (!L_20)\n"
+        "\t\t{\n"
+        "\t\t\tgoto IL_00bb;\n"
+        "\t\t}"
+    )
+    new_sm_target = (
+        "\t\tTransform_tB27202C6F4E36D225EE28A13E4D662BF99785DB1* L_19;\n"
+        "\t\tL_19 = GameplayCamera_get_Target_mB590E93626C28F1E1C40BA4A66D970851B571A03(L_18, NULL);\n"
+        "\t\til2cpp_codegen_runtime_class_init_inline(Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C_il2cpp_TypeInfo_var);\n"
+        "\t\tbool L_20;\n"
+        "\t\tL_20 = Object_op_Implicit_m93896EF7D68FA113C42D3FE2BC6F661FC7EF514A(L_19, NULL);\n"
+        "\t\tif (!L_20)\n"
+        "\t\t{\n"
+        "\t\t\tif (L_18->___CameraTarget != NULL)\n"
+        "\t\t\t{\n"
+        "\t\t\t\tCameraTarget_UpdateTargetPosition_mD972A3C84596D116F1CE955E689DD1B661498023(L_18->___CameraTarget, NULL);\n"
+        "\t\t\t\tVector2_t1FD6F485C871E832B347AB2DC8CBA08B739D8DF7 tPos2D = Vector2_op_Implicit_mE8EBEE9291F11BB02F062D6E000F4798968CBD96_inline(L_18->___CameraTarget->___TargetPosition, NULL);\n"
+        "\t\t\t\tScenesManager_set_CurrentCameraTargetPosition_mE2872967D7E1AB13132151B99910573F5BED3563_inline(__this, tPos2D, NULL);\n"
+        "\t\t\t\tScenesManager_set_CurrentCameraTargetPositionExtrapolated_m7E5541893EB512A8B417B90382A969FAB7DCD478_inline(__this, tPos2D, NULL);\n"
+        "\t\t\t}\n"
+        "\t\t\tgoto IL_00bb;\n"
+        "\t\t}"
+    )
+    if "if (L_18->___CameraTarget != NULL)" not in content:
+        if old_sm_target not in content:
+            raise RuntimeError("Could not find GameplayCamera_get_Target check in ScenesManager_UpdatePosition (Assembly-CSharp__18.cpp)")
+        content = content.replace(old_sm_target, new_sm_target, 1)
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Patched Assembly-CSharp__18.cpp (ScenesManager.UpdatePosition fallback when Target is NULL)")
 
 
 def patch_assembly_csharp_26(cpp_dir: str) -> None:
@@ -2514,6 +2722,7 @@ def main() -> None:
     patch_assembly_csharp_11(cpp_dir)
     patch_assembly_csharp_13(cpp_dir)
     patch_assembly_csharp_17(cpp_dir)
+    patch_assembly_csharp_18(cpp_dir)
     patch_assembly_csharp_21(cpp_dir)
     patch_assembly_csharp_23(cpp_dir)
     patch_assembly_csharp_25(cpp_dir)
