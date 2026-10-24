@@ -844,6 +844,7 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR MaterialU5BU5D_t2B1D11C42DB07A4400C0535F92DBB
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool Renderer_get_enabled_mFDDF363859AEC88105A925FA7EA341C077B09B54 (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Renderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8 (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, bool ___0_value, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int32_t Renderer_get_sortingOrder_m4CE7ADEEC8E2F28CC1D10B1D4091A10F8F1583FA (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, const RuntimeMethod* method);
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Renderer_set_sortingOrder_m4C67F002AD68CA0D55D20D6B78CDED3DB24467DA (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* __this, int32_t ___0_value, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR GameObject_t76FEDD663AB33C991A9C9A23129337651094216F* Component_get_gameObject_m57AEFBB14DB39EC476F740BA000E170355DE691B (Component_t39FBE53E5EFCF4409111FB22C15FF73717632EC3* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR Shader_tADC867D36B7876EE22427FAA2CE485105F4EE692* Material_get_shader_m8B0C11AE6F2AD7DE30AF52D3195EB716F7A71983 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, const RuntimeMethod* method);
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void Material_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171 (Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* __this, Shader_tADC867D36B7876EE22427FAA2CE485105F4EE692* ___0_value, const RuntimeMethod* method);
@@ -1032,6 +1033,88 @@ static const char* OriPort_LookupOriginalShader(Material_t18053F08F347D0DCA5E114
 \treturn NULL;
 }
 
+struct OriPortMatOrigRqEntry { uintptr_t matPtr; int32_t origRq; };
+static OriPortMatOrigRqEntry s_matOrigRqs[4096];
+static int32_t s_matOrigRqCount = 0;
+
+static int32_t OriPort_GetOrRecordOrigRq(Material_t18053F08F347D0DCA5E1140EC7EC4533DD8A14E3* mat, int32_t curRq)
+{
+\tuintptr_t ptr = (uintptr_t)mat;
+\tfor (int32_t k = 0; k < s_matOrigRqCount; k++)
+\t{
+\t\tif (s_matOrigRqs[k].matPtr == ptr) return s_matOrigRqs[k].origRq;
+\t}
+\tif (s_matOrigRqCount < 4096)
+\t{
+\t\ts_matOrigRqs[s_matOrigRqCount].matPtr = ptr;
+\t\ts_matOrigRqs[s_matOrigRqCount].origRq = curRq;
+\t\ts_matOrigRqCount++;
+\t}
+\treturn curRq;
+}
+
+static uintptr_t s_sortedRenderers[4096];
+static int32_t s_sortedRendererCount = 0;
+
+static bool OriPort_MarkRendererSortedOnce(Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* ren)
+{
+\tuintptr_t ptr = (uintptr_t)ren;
+\tfor (int32_t k = 0; k < s_sortedRendererCount; k++)
+\t{
+\t\tif (s_sortedRenderers[k] == ptr) return false;
+\t}
+\tif (s_sortedRendererCount < 4096)
+\t{
+\t\ts_sortedRenderers[s_sortedRendererCount++] = ptr;
+\t}
+\treturn true;
+}
+
+static const char* s_unrecShaderHashes[64] = {
+\t"00CD2E0305D646AB33EC56A95655E91E", "031BA604C1D747DC7C1C3CFD8CEC09DD", "03D778A33753FA1BEF9CE6DED77E31E5", "0501356DBA023A00E7378E466B3314A3",
+\t"1A57191BAD0779E7EF086AE195CA73C0", "1ABF51184AE83D718EAA760225FD25B9", "2169FCED4D74CAA568CCABED77F13E58", "2241C34EB5F9EC42CB7A9C3F7620EFD6",
+\t"2652AEE04453E37D6E6BF8FA83ED9477", "2BB4B30D3F05B69B6011415C1F4D6E82", "2C5CB034C53DF8E0C4862E22BAE6F584", "317C6B4AC8B7EAB70CD7BF5B9863E4BA",
+\t"4A6E0B3CD8341F809A2A3884F59EDA77", "4F4124DF6A7E504C85F86203F62CE8CC", "4FBEA9EA5E9B4A816CC8681189485ADC", "50DBE9FFDA037A6CE2E1882FA102A27B",
+\t"51FFBC8A865551348255ADBA717695ED", "521F6134CEC34C682E98FDAA0B4AB333", "56F773BAACE714039900EE86683EED0C", "62112409605605BD0EEED38AB15FD4F6",
+\t"62FC5FEA5F91DED1F56492A80FBD03AE", "63C9A76203828A7B6D45B92BD7A182AB", "67BC03A62A3A9F55F3D646CE29D92552", "6AA829B464D0E29F5A62525CE75C1B06",
+\t"6AC4701202547529A8F6BD775EC82756", "6DE4272CC949BACC1BD74DBCC1C4D735", "74E30CF083A9F15B0E4164B9CF57ADAD", "7725EF50A4C3658301FBAC1408CE4311",
+\t"7ECC953D3B4B94456F3AFDA380E31869", "84B92AF00421D0DB315D74752F3A9760", "87668D0C51942839678644D064FD1478", "8A759A910BB8B887A12AD617926909F8",
+\t"8E04C49E4F19D6F432FE1ED64B4ECB7C", "8E7581C72891DAB815C69459F3FFEDBB", "8EAF26CC870626D710F8338FE2194F32", "969CCC54BDD83DD267DFECA3F18764FF",
+\t"9B77EB6CEE5C2A483EBE702E2547C46D", "9D27AEA836771F797CCB1CBAD8607B9D", "A5F4D7677D7B29E168CB52D00FBF0D6E", "A7A0D0ECD5E0D6BC0B3502A491A5A5DA",
+\t"AF308318579E639A54833DEC35F58117", "B2022062318D2FC10D6E932803065819", "B25127D2520521BC07DD6E81723D0141", "B2E3990666A000D03F35FF3E403FBD5A",
+\t"B55C948245B60D3BA9EFD3F9523BC368", "B6F79B20D0A42BB02074E543845D859F", "BFD9634BB59E902B0B85B00B45B58ACD", "C262E2670DC2A9272B2E0508CE58AA14",
+\t"C38248A717E3365DBCF2CAB93E762B0A", "C8211417B8B7224320575A8768B67984", "CCD82372EF7AEC0E4A9C618731D4E911", "D78C135F31C3B686A157194DF63B383C",
+\t"DBCA40A98E7F42F0C8DF9443F048CCA9", "DE79F6FE89F9D69D03DF2F9A1D5B2A2F", "DEF2A6DDFF310B2E1D51D74C831BB9F6", "E68FD95E30E7D8501281D0EB25AA87FE",
+\t"E6A8D128C19D9D61595A736A16621086", "EE6D9CA7512AD05ECB4461FFECC0FE87", "F20A1FBACFE47698E6A1A04582B0E896", "F3CECF140CCCD9EE18749E96EF40BB90",
+\t"F473783183FBF66CEC29904C0227B20D", "F4D07346475609D9C4783807B8B161C1", "FD58B35727E6396C1631D34A1F29D9E8", "FF65CB6FB8B37167AC56485AD34F4DE0"
+};
+
+static bool OriPort_IsUnrecoveredShaderName(const char* shNameUtf8)
+{
+\tif (strncmp(shNameUtf8, "Hidden/UberShader/", 18) != 0) return false;
+\tconst char* hash = shNameUtf8 + 18;
+\tfor (int32_t k = 0; k < 64; k++)
+\t{
+\t\tif (strcmp(hash, s_unrecShaderHashes[k]) == 0) return true;
+\t}
+\treturn false;
+}
+
+static bool OriPort_IsLightShaderHash(const char* shNameUtf8)
+{
+\tif (strncmp(shNameUtf8, "Hidden/UberShader/", 18) != 0) return false;
+\tconst char* h = shNameUtf8 + 18;
+\treturn (strcmp(h, "0501356DBA023A00E7378E466B3314A3") == 0 ||
+\t        strcmp(h, "8E7581C72891DAB815C69459F3FFEDBB") == 0 ||
+\t        strcmp(h, "969CCC54BDD83DD267DFECA3F18764FF") == 0 ||
+\t        strcmp(h, "C38248A717E3365DBCF2CAB93E762B0A") == 0 ||
+\t        strcmp(h, "C8211417B8B7224320575A8768B67984") == 0 ||
+\t        strcmp(h, "E68FD95E30E7D8501281D0EB25AA87FE") == 0 ||
+\t        strcmp(h, "EE6D9CA7512AD05ECB4461FFECC0FE87") == 0 ||
+\t        strcmp(h, "F473783183FBF66CEC29904C0227B20D") == 0 ||
+\t        strcmp(h, "F4D07346475609D9C4783807B8B161C1") == 0);
+}
+
 IL2CPP_EXTERN_C void OriPort_ApplyAlphaGrabOverride()
 {
 \tif (g_OriDebug.alpha_grab_mode != 2 && g_OriDebug.alpha_grab_mode != 3) return;
@@ -1143,12 +1226,22 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t}
 \t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* textShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteral7078454B1E5C2E624B80831BA98D6DD13E9272FD, NULL);
 \t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* fallbackShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(_stringLiteralD14C58C1EE361C9330F36F7B5E51A6947D158C6E, NULL);
+\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* lightUberShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(il2cpp_codegen_string_new_wrapper("Hidden/UberShader/5E02F6D274918B9CD7CF0E628EE3DAFC"), NULL);
+\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* maskedUberShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(il2cpp_codegen_string_new_wrapper("Hidden/UberShader/030FB05E5179EA0FDD15B22B95D72491"), NULL);
+\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* unmaskedUberShader = Shader_Find_m183AA54F78320212DDEC811592F98456898A41C5(il2cpp_codegen_string_new_wrapper("Hidden/UberShader/371438844E0E273EEBDA3ED54DE0D612"), NULL);
+\t\tString_t* maskTexPropName = il2cpp_codegen_string_new_wrapper("_MaskTexture");
 \t\tfor (int32_t i = 0; i < count; i++)
 \t\t{
 \t\t\tObject_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C* obj = objs->GetAt(static_cast<il2cpp_array_size_t>(i));
 \t\t\tif (obj == NULL) continue;
 \t\t\tRenderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF* ren = (Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF*)CastclassClass((RuntimeObject*)obj, Renderer_t320575F223BCB177A982E5DDB5DB19FAA89E7FBF_il2cpp_TypeInfo_var);
 \t\t\tif (ren == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(ren, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL)) continue;
+\t\t\tchar goName[96] = {0};
+\t\t\tGameObject_t76FEDD663AB33C991A9C9A23129337651094216F* go = Component_get_gameObject_m57AEFBB14DB39EC476F740BA000E170355DE691B((Component_t39FBE53E5EFCF4409111FB22C15FF73717632EC3*)ren, NULL);
+\t\t\tif (go != NULL && !Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)go, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t{
+\t\t\t\tOriPort_StrToUtf8(Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392((Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)go, NULL), goName, sizeof(goName));
+\t\t\t}
 \t\t\tMaterialU5BU5D_t2B1D11C42DB07A4400C0535F92DBB87A2E346D3D* mats = Renderer_get_sharedMaterials_m0B61AFD8EDA35A70C796FFB2F28BB62380051ABF(ren, NULL);
 \t\t\tif (mats == NULL) continue;
 \t\t\tint32_t mCount = (int32_t)(((RuntimeArray*)mats)->max_length);
@@ -1159,42 +1252,7 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\tShader_tADC867D36B7876EE22427FAA2CE485105F4EE692* sh = Material_get_shader_m8B0C11AE6F2AD7DE30AF52D3195EB716F7A71983(mat, NULL);
 \t\t\t\tif (sh == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(sh, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL)) continue;
 \t\t\t\tString_t* shName = Object_get_name_mAC2F6B897CF1303BA4249B4CB55271AFACBB6392(sh, NULL);
-\t\t\t\tif (shName != NULL)
-\t\t\t\t{
-\t\t\t\t\tif (String_op_Equality_m030E1B219352228970A076136E455C4E568C02C1(shName, _stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA, NULL))
-\t\t\t\t\t{
-\t\t\t\t\t\tRenderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(ren, (bool)0, NULL);
-\t\t\t\t\t\tcontinue;
-\t\t\t\t\t}
-\t\t\t\t\tif (String_StartsWith_mF75DBA1EB709811E711B44E26FF919C88A8E65C0(shName, _stringLiteral82CBFBC9D96154286C59A7A832F44ACA59CCC81D, NULL))
-\t\t\t\t\t{
-\t\t\t\t\t\tint32_t rq = Material_get_renderQueue_mC427C54D2667620CBB845559DA4DA31BE166C757(mat, NULL);
-\t\t\t\t\t\tbool isText = false;
-\t\t\t\t\t\tif (Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093, NULL))
-\t\t\t\t\t\t{
-\t\t\t\t\t\t\tTexture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* txtTex = Material_GetTexture_mBA07A377A7DDD29CD53E6F687DE6D49A42C0C719(mat, _stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093, NULL);
-\t\t\t\t\t\t\tif (txtTex != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(txtTex, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
-\t\t\t\t\t\t\t{
-\t\t\t\t\t\t\t\tisText = true;
-\t\t\t\t\t\t\t}
-\t\t\t\t\t\t}
-\t\t\t\t\t\tif (isText && textShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(textShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
-\t\t\t\t\t\t{
-\t\t\t\t\t\t\tOriPort_RecordOriginalShader(mat, shName);
-\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, textShader, NULL);
-\t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
-\t\t\t\t\t\t}
-\t\t\t\t\t\telse if (!Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteralCE9C589CA1C6D1CB29B40C006FAA5870083004B1, NULL))
-\t\t\t\t\t\t{
-\t\t\t\t\t\t\tif (fallbackShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(fallbackShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
-\t\t\t\t\t\t\t{
-\t\t\t\t\t\t\t\tOriPort_RecordOriginalShader(mat, shName);
-\t\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, fallbackShader, NULL);
-\t\t\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, rq, NULL);
-\t\t\t\t\t\t\t}
-\t\t\t\t\t\t}
-\t\t\t\t\t}
-\t\t\t\t}
+\t\t\t\tfloat dfx = -999.0f;
 \t\t\t\tif (Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL))
 \t\t\t\t{
 \t\t\t\t\tVector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 df = Material_GetVector_mA2011D4DA2CC58003AE90DBF0802CF5EE31B014D(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, NULL);
@@ -1202,6 +1260,87 @@ static void OriPort_SanitizeSceneRenderers()
 \t\t\t\t\t{
 \t\t\t\t\t\tdf.___x = 0.0f;
 \t\t\t\t\t\tMaterial_SetVector_m69444B8040D955821F241113446CC8713C9E12D1(mat, _stringLiteral57731D1C7614FDA9B9F849E36B9C6D9B7278712C, df, NULL);
+\t\t\t\t\t}
+\t\t\t\t\tdfx = df.___x;
+\t\t\t\t}
+\t\t\t\tif (shName != NULL)
+\t\t\t\t{
+\t\t\t\t\tif (String_op_Equality_m030E1B219352228970A076136E455C4E568C02C1(shName, _stringLiteral1E5A05C3CB0E65E4EC72B4E86353C4177C469AEA, NULL))
+\t\t\t\t\t{
+\t\t\t\t\t\tRenderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(ren, (bool)0, NULL);
+\t\t\t\t\t\tcontinue;
+\t\t\t\t\t}
+\t\t\t\t\tchar shNameUtf8[96] = {0};
+\t\t\t\t\tOriPort_StrToUtf8(shName, shNameUtf8, sizeof(shNameUtf8));
+\t\t\t\t\tbool isUber = (strncmp(shNameUtf8, "Hidden/UberShader/", 18) == 0);
+\t\t\t\t\tbool isOriPort = (strncmp(shNameUtf8, "OriPort/", 8) == 0);
+\t\t\t\t\tif (isUber || isOriPort)
+\t\t\t\t\t{
+\t\t\t\t\t\tint32_t curRq = Material_get_renderQueue_mC427C54D2667620CBB845559DA4DA31BE166C757(mat, NULL);
+\t\t\t\t\t\tint32_t origRq = OriPort_GetOrRecordOrigRq(mat, curRq);
+\t\t\t\t\t\tint32_t origSort = Renderer_get_sortingOrder_m4CE7ADEEC8E2F28CC1D10B1D4091A10F8F1583FA(ren, NULL);
+\t\t\t\t\t\tif (isUber)
+\t\t\t\t\t\t{
+\t\t\t\t\t\t\tbool isText = false;
+\t\t\t\t\t\t\tif (Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093, NULL))
+\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\tTexture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* txtTex = Material_GetTexture_mBA07A377A7DDD29CD53E6F687DE6D49A42C0C719(mat, _stringLiteral12423BE7F4613F1339F6D1EB4246E858CEF4B093, NULL);
+\t\t\t\t\t\t\t\tif (txtTex != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(txtTex, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\t\tisText = true;
+\t\t\t\t\t\t\t\t}
+\t\t\t\t\t\t\t}
+\t\t\t\t\t\t\tif (isText && textShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(textShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\tOriPort_RecordOriginalShader(mat, shName);
+\t\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, textShader, NULL);
+\t\t\t\t\t\t\t}
+\t\t\t\t\t\t\telse if (!Material_HasProperty_mC09A83B44E368A217F606DD4954FA080CC03EC6C(mat, _stringLiteralCE9C589CA1C6D1CB29B40C006FAA5870083004B1, NULL) || OriPort_IsUnrecoveredShaderName(shNameUtf8))
+\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\tif (strcmp(goName, "distort") == 0 || strcmp(goName, "distortion") == 0)
+\t\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\t\tRenderer_set_enabled_m015E6D7B825528A31182F267234CC6A925F71DA8(ren, (bool)0, NULL);
+\t\t\t\t\t\t\t\t\tcontinue;
+\t\t\t\t\t\t\t\t}
+\t\t\t\t\t\t\t\tbool isLight = OriPort_IsLightShaderHash(shNameUtf8) || (strcmp(goName, "light") == 0) || (strcmp(goName, "glow") == 0 && origSort == 0 && dfx <= -0.95f && dfx > -900.0f);
+\t\t\t\t\t\t\t\tif (isLight && lightUberShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(lightUberShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\t\tOriPort_RecordOriginalShader(mat, shName);
+\t\t\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, lightUberShader, NULL);
+\t\t\t\t\t\t\t\t}
+\t\t\t\t\t\t\t\telse if (maskedUberShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(maskedUberShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\t\tOriPort_RecordOriginalShader(mat, shName);
+\t\t\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, maskedUberShader, NULL);
+\t\t\t\t\t\t\t\t\tTexture_t791CBB51219779964E0E8A2ED7C1AA5F92A4A700* mTex = Material_GetTexture_mBA07A377A7DDD29CD53E6F687DE6D49A42C0C719(mat, maskTexPropName, NULL);
+\t\t\t\t\t\t\t\t\tif ((mTex == NULL || Object_op_Equality_mB6120F782D83091EF56A198FCEBCF066DB4A9605(mTex, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL)) &&
+\t\t\t\t\t\t\t\t\t    unmaskedUberShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(unmaskedUberShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, unmaskedUberShader, NULL);
+\t\t\t\t\t\t\t\t\t}
+\t\t\t\t\t\t\t\t}
+\t\t\t\t\t\t\t\telse if (fallbackShader != NULL && Object_op_Inequality_mD0BE578448EAA61948F25C32F8DD55AB1F778602(fallbackShader, (Object_tC12DECB6760A7F2CBF65D9DCF18D044C2D97152C*)NULL, NULL))
+\t\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\t\tOriPort_RecordOriginalShader(mat, shName);
+\t\t\t\t\t\t\t\t\tMaterial_set_shader_mBD3A0D9AB14DE2F7CD5F2775E9AD58E15424C171(mat, fallbackShader, NULL);
+\t\t\t\t\t\t\t\t}
+\t\t\t\t\t\t\t}
+\t\t\t\t\t\t}
+\t\t\t\t\t\tMaterial_set_renderQueue_mFBB72A781DCCF0D4B85670B597788EC2D02D1C14(mat, 3000, NULL);
+\t\t\t\t\t\tif (j == 0 && OriPort_MarkRendererSortedOnce(ren) && origRq >= 3000 && origRq < 15000 && origSort >= 0 && origSort <= 16000)
+\t\t\t\t\t\t{
+\t\t\t\t\t\t\tint64_t num6 = (int64_t)origSort * 12000LL + (int64_t)(origRq - 3000);
+\t\t\t\t\t\t\tint64_t div = 12000LL;
+\t\t\t\t\t\t\tif ((dfx > 5.0f || (dfx < -5.0f && dfx > -900.0f)) && origSort <= 100) div = 18LL;
+\t\t\t\t\t\t\telse if (((dfx >= 1.0f && dfx <= 5.0f) || (dfx >= -5.0f && dfx <= -1.0f)) && origSort <= 4100) div = 1600LL;
+\t\t\t\t\t\t\telse if (dfx > -1.0f && dfx < 1.0f && origSort <= 8100) div = 3200LL;
+\t\t\t\t\t\t\tint32_t newSort = (int32_t)(num6 / div);
+\t\t\t\t\t\t\tif (newSort > 32760) newSort = 32760;
+\t\t\t\t\t\t\tif (newSort != origSort)
+\t\t\t\t\t\t\t{
+\t\t\t\t\t\t\t\tRenderer_set_sortingOrder_m4C67F002AD68CA0D55D20D6B78CDED3DB24467DA(ren, newSort, NULL);
+\t\t\t\t\t\t\t}
+\t\t\t\t\t\t}
 \t\t\t\t\t}
 \t\t\t\t}
 \t\t\t}
@@ -1518,10 +1657,30 @@ static void OriPort_DrawDebugOverlay()
     content = content.replace(render_frame_decl, extern_decls + render_frame_decl, 1)
 
     # 1. In OriPortManualPresenter_RenderFrame:
+    #    - Force camera backgroundColor alpha to 0.0f so empty sky/background starts with DstAlpha = 0.0
+    #      (preventing Blend DstAlpha One 2D lights from illuminating empty background)
     #    - Sync ori_debug.txt every 60 frames & trigger OriPort_DumpInspectorLog() if dump_now != 0
     #    - Periodically run OriPort_SanitizeSceneRenderers() (every 15 frames)
     #    - Call OriPort_UpdateTurbulenceGlobals()
     #    - Call OriPortManualPresenter_UpdateAlphaGrab when alpha_grab_mode == 1
+    old_bg_color = (
+        "\t\t\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_58 = V_1;\n"
+        "\t\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F L_59 = V_7;\n"
+        "\t\t\t\tNullCheck(L_58);\n"
+        "\t\t\t\tCamera_set_backgroundColor_m036FD8C316A93A0B168ACC89AFF16D396B872138(L_58, L_59, NULL);"
+    )
+    new_bg_color = (
+        "\t\t\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_58 = V_1;\n"
+        "\t\t\t\tColor_tD001788D726C3A7F1379BEED0260B9591F440C1F L_59 = V_7;\n"
+        "\t\t\t\tL_59.___a = 0.0f;\n"
+        "\t\t\t\tNullCheck(L_58);\n"
+        "\t\t\t\tCamera_set_backgroundColor_m036FD8C316A93A0B168ACC89AFF16D396B872138(L_58, L_59, NULL);"
+    )
+    if "L_59.___a = 0.0f;" not in content:
+        if old_bg_color not in content:
+            raise RuntimeError("Could not find Camera_set_backgroundColor block in OriPortManualPresenter_RenderFrame")
+        content = content.replace(old_bg_color, new_bg_color, 1)
+
     old_render_call = """\t\t\t\tShader_SetGlobalFloat_m8AA7A4D7D73914A00D9207D78621EDDF70602FB0(_stringLiteral682BF2EFA52E75C110EBBFF64FA09D54B09DA240, (-1.0f), NULL);
 \t\t\t\tOriPortManualPresenter_set_IsRenderingPresentedFrame_m1760BA79F65488022AE1A93714CC89A44E71424E_inline((bool)1, NULL);
 \t\t\t\tCamera_tA92CC927D7439999BC82DBEDC0AA45B470F9E184* L_71 = V_1;
@@ -1810,6 +1969,15 @@ def patch_assembly_csharp_27(cpp_dir: str) -> None:
     path = os.path.join(cpp_dir, "Assembly-CSharp__27.cpp")
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
+
+    # 0. In UberShaderRenderQueue_SetQeueusFromZ, set material.renderQueue to 3000 instead of 3000 + (num6 % 12000)
+    #    so Unity sorts all transparent renderers by SortingLayer + sortingOrder instead of scrambling layers by renderQueue!
+    old_rq_mod = "\t\tint32_t L_51 = V_4;\n\t\tV_6 = ((int32_t)il2cpp_codegen_add(((int32_t)3000), ((int32_t)(L_51%((int32_t)12000)))));"
+    new_rq_mod = "\t\tint32_t L_51 = V_4;\n\t\t(void)L_51;\n\t\tV_6 = 3000;"
+    if "V_6 = 3000;" not in content:
+        if old_rq_mod not in content:
+            raise RuntimeError("Could not find V_6 renderQueue modulo assignment in UberShaderRenderQueue_SetQeueusFromZ")
+        content = content.replace(old_rq_mod, new_rq_mod, 1)
 
     # 1. Clamp L_15 (z) in UberShaderRenderQueue_SetRenderQueueExplicit so _DepthFlipScreen.x stays in [-100, 900]
     old_vec_set = "\t\tfloat L_15 = ___1_z;\n\t\tVector4_t58B63D32F48C0DBF50DE2C60794C4676C80EDBE3 L_16 = V_1;"
