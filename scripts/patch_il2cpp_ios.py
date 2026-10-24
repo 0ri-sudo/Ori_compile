@@ -503,12 +503,17 @@ IL2CPP_EXTERN_C void OriPort_DumpCameraState(void* fpVoid)
     #    (TurbulenceManager) as well as cutscene camera sampling!
     old_utp_vars = """\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 V_3;
 \tmemset((&V_3), 0, sizeof(V_3));
-\t{"""
+\t{\n\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_0 = __this->___TargetPosition;"""
     new_utp_vars = """\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 V_3;
 \tmemset((&V_3), 0, sizeof(V_3));
 \tbool anyValidLayer = false;
-\t{"""
-    if "bool anyValidLayer = false;" not in content:
+\t{\n\t\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 L_0 = __this->___TargetPosition;"""
+    # Clean up any misplaced anyValidLayer from earlier functions first
+    content = content.replace(
+        "\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 V_3;\n\tmemset((&V_3), 0, sizeof(V_3));\n\tbool anyValidLayer = false;\n\t{\n\t\tV_0 = 0;",
+        "\tVector3_t24C512C7B96BBABAD472002D0BA2BDA40A5A80B2 V_3;\n\tmemset((&V_3), 0, sizeof(V_3));\n\t{\n\t\tV_0 = 0;",
+    )
+    if new_utp_vars not in content:
         if old_utp_vars not in content:
             raise RuntimeError("Could not find V_3 init in CameraTarget_UpdateTargetPosition (Assembly-CSharp__3.cpp)")
         content = content.replace(old_utp_vars, new_utp_vars, 1)
