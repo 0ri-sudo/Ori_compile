@@ -16,7 +16,7 @@ permissions:
 jobs:
   build-ipa:
     name: Download Split Xcode Project & Compile IPA on macOS
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 120
 
     steps:
